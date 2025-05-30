@@ -1,20 +1,19 @@
 import { useRouter } from 'expo-router';
 import { collection, getDocs } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { FlatList, Pressable, Text, TextInput, View, ScrollView, RefreshControl } from 'react-native';
+import { FlatList, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import AnalyticsOverview from '../components/analytics/AnalyticsOverview';
 import Loader from "../components/common/Loader";
 import Order from "../components/transactions/Order";
 import { useTheme } from '../context/ThemeContextProvider';
-import { db } from '../services/firebase/config';
-import AnalyticsOverview from '../components/analytics/AnalyticsOverview';
 import { fetchAnalytics } from '../services/firebase/analytics';
+import { db } from '../services/firebase/config';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  // Analytics state
   const [analyticsData, setAnalyticsData] = useState({
     today: { orders: 0, total: 0, cash: 0, credit: 0 },
     currentMonth: {
@@ -27,7 +26,6 @@ export default function HomeScreen() {
     monthlyData: []
   });
 
-  // Outlet states
   const [outlets, setOutlets] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [filteredOutlets, setFilteredOutlets] = useState([]);
@@ -44,11 +42,9 @@ export default function HomeScreen() {
     }
 
     try {
-      // Fetch analytics data
       const analytics = await fetchAnalytics();
       setAnalyticsData(analytics.analytics);
 
-      // Fetch outlets and orders
       const outletsRef = collection(db, 'outlets');
       const ordersRef = collection(db, 'sales');
 
@@ -62,7 +58,6 @@ export default function HomeScreen() {
         ...doc.data()
       }));
 
-      // Create orders map
       const ordersByOutlet = {};
       ordersSnapshot.docs.forEach(doc => {
         const order = { id: doc.id, ...doc.data() };
@@ -72,7 +67,6 @@ export default function HomeScreen() {
         ordersByOutlet[order.outletId].push(order);
       });
 
-      // Process orders for each outlet
       const ordersMap = {};
       outletList.forEach(outlet => {
         const outletOrders = ordersByOutlet[outlet.id] || [];
@@ -101,14 +95,12 @@ export default function HomeScreen() {
     }
   };
 
-  // Initial load and refresh interval
   useEffect(() => {
     fetchAllData();
     const refreshInterval = setInterval(() => fetchAllData(), 300000); // 5 minutes
     return () => clearInterval(refreshInterval);
   }, []);
 
-  // Search filter
   useEffect(() => {
     if (!searchText.trim()) {
       setFilteredOutlets(outlets);
@@ -231,7 +223,7 @@ export default function HomeScreen() {
             onPress={handleOrderPress}
             className="bg-blue-600 rounded-lg px-4 py-2 active:bg-blue-700"
           >
-            <Text className="text-white text-lg">Order</Text>
+            <Text className="text-white text-lg">New Order</Text>
           </Pressable>
         </View>
 

@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { BackHandler } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   addDoc,
@@ -15,20 +14,18 @@ import {
 } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
+  Alert, BackHandler, KeyboardAvoidingView,
   Platform,
   ScrollView,
-  View,
-
+  View
 } from 'react-native';
+import { LoadingButton } from '../components/common/LoadingButton';
 import { FormField } from '../components/forms/FromField';
+import { Select } from '../components/forms/Select';
 import MapPreview from '../components/maps/MapPreview';
+import { FORM_INITIAL_STATE, ROUTES } from '../constants/outlet.constants';
 import { useTheme } from '../context/ThemeContextProvider';
 import { db } from '../services/firebase/config';
-import { ROUTES, FORM_INITIAL_STATE } from '../constants/outlet.constants';
-import { Select } from '../components/forms/Select';
-import { LoadingButton } from '../components/common/LoadingButton';
 
 const AddOutlet = () => {
   const { theme } = useTheme();
@@ -245,7 +242,6 @@ const handleSubmit = async () => {
       });
       Alert.alert('Success', 'Outlet added successfully');
       await AsyncStorage.removeItem('outletFormData');
-      // Reset form data and location confirmation
       setFormData(FORM_INITIAL_STATE);
       setLocationConfirmed(false);
       setHasUnsavedChanges(false);

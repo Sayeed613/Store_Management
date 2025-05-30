@@ -5,13 +5,11 @@ export const fetchAnalytics = async () => {
   try {
     const now = new Date();
 
-    // Get current month boundaries
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
     const ordersRef = collection(db, 'sales');
 
-    // Query for current month's orders
     const monthQuery = query(
       ordersRef,
       where('orderDate', '>=', Timestamp.fromDate(firstDayOfMonth)),
@@ -19,16 +17,13 @@ export const fetchAnalytics = async () => {
       orderBy('orderDate', 'desc')
     );
 
-    // Query for all orders (total sales)
     const allOrdersQuery = query(ordersRef);
 
-    // Execute both queries in parallel
     const [monthSnapshot, allOrdersSnapshot] = await Promise.all([
       getDocs(monthQuery),
       getDocs(allOrdersQuery)
     ]);
 
-    // Process current month orders
     let monthlyTotal = 0;
     let cashTotal = 0;
     let creditTotal = 0;
@@ -41,7 +36,6 @@ export const fetchAnalytics = async () => {
       monthlyTotal += amount;
       orderCount++;
 
-      // Correct field name is 'purchaseType'
       if (data.purchaseType?.toLowerCase() === 'cash') {
         cashTotal += amount;
       } else if (data.purchaseType?.toLowerCase() === 'credit') {
@@ -49,7 +43,6 @@ export const fetchAnalytics = async () => {
       }
     });
 
-    // Calculate all-time total
     const allTimeTotal = allOrdersSnapshot.docs.reduce((total, doc) => {
       return total + (parseFloat(doc.data().amount) || 0);
     }, 0);

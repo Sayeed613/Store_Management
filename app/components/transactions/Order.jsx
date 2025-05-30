@@ -26,25 +26,21 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  // Form states
   const [customerName, setCustomerName] = useState('');
   const [salesType, setSalesType] = useState(salesTypes[0]);
   const [purchaseType, setPurchaseType] = useState(purchaseTypes[0]);
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Search and outlet states
   const [searchText, setSearchText] = useState('');
   const [outlets, setOutlets] = useState([]);
   const [filteredOutlets, setFilteredOutlets] = useState([]);
   const [selectedOutlet, setSelectedOutlet] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Date picker states
   const [orderDate, setOrderDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // Fetch outlets on mount
   useEffect(() => {
     const fetchOutlets = async () => {
       try {
@@ -63,7 +59,6 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     fetchOutlets();
   }, []);
 
-  // Handle preselected outlet from params
   useEffect(() => {
     const params = router.params;
     if (params?.preselectedOutlet) {
@@ -79,7 +74,6 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     }
   }, [router.params]);
 
-  // Filter outlets based on search
   useEffect(() => {
     if (!searchText.trim()) {
       setFilteredOutlets([]);
@@ -118,7 +112,6 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
 
     setLoading(true);
     try {
-      // Prepare sale data
       const saleData = {
         outletId: selectedOutlet.id,
         storeName: selectedOutlet.storeName,
@@ -131,10 +124,8 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
         createdAt: serverTimestamp(),
       };
 
-      // Add the sale document
       const saleRef = await addDoc(collection(db, 'sales'), saleData);
 
-      // Update the outlet's last order details and totals
       const outletRef = doc(db, 'outlets', selectedOutlet.id);
       const updateData = {
         lastOrderAmount: Number(amount),
@@ -148,7 +139,6 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
         updatedAt: serverTimestamp()
       };
 
-      // Update pending amount only for credit purchases
       if (purchaseType === 'Credit') {
         updateData.pendingAmount = (selectedOutlet.pendingAmount || 0) + Number(amount);
       }
@@ -189,67 +179,93 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     }
   };
 
-  const renderSearchBar = () => (
-    <View className="relative z-20">
-      <TextInput
-        placeholder="Search outlet"
-        placeholderTextColor={isDark ? '#888' : '#999'}
-        value={searchText}
-        onChangeText={text => {
-          setSearchText(text);
-          if (selectedOutlet) {
-            setSelectedOutlet(null);
-          }
-        }}
-        onFocus={() => {
-          setShowSuggestions(true);
-          if (selectedOutlet) {
-            setSelectedOutlet(null);
-            setSearchText('');
-          }
-        }}
-        className={`border rounded-xl px-4 py-3 ${
-          isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
-        }`}
-      />
 
-      {showSuggestions && filteredOutlets.length > 0 && (
-  <View className="absolute top-full left-0 right-0 mt-1 z-30">
-    <View
-      style={{ maxHeight: 200 }} // <- ✅ Set a fixed height here
-      className={`border rounded-xl shadow-lg overflow-hidden ${
-        isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
+const renderSearchBar = () => (
+  <View className="relative z-20">
+    <TextInput
+      placeholder="Search outlet"
+      placeholderTextColor={isDark ? '#888' : '#999'}
+      value={searchText}
+      onChangeText={text => {
+        setSearchText(text);
+        if (selectedOutlet) {
+          setSelectedOutlet(null);
+        }
+      }}
+      onFocus={() => {
+        setShowSuggestions(true);
+        if (selectedOutlet) {
+          setSelectedOutlet(null);
+          setSearchText('');
+        }
+      }}
+      className={`border rounded-xl px-4 py-3 ${
+        isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
       }`}
-    >
-      <FlatList
-        data={filteredOutlets}
-        keyExtractor={item => item.id}
-        keyboardShouldPersistTaps="handled"
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => handleSelectOutlet(item)}
-            className={`p-3 border-b ${
-              isDark ? 'border-gray-700' : 'border-gray-200'
-            }`}
-          >
-            <Text className={isDark ? 'text-white' : 'text-gray-900'}>
-              {item.storeName}
-            </Text>
-            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              {item.propName} • {item.phoneNumber}
-            </Text>
-            <Text className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
-              {[item.street, item.route, item.locality].filter(Boolean).join(', ')}
-            </Text>
-          </Pressable>
-        )}
-      />
-    </View>
-  </View>
-      )}
-    </View>
-  );
+    />
 
+    {showSuggestions && filteredOutlets.length > 0 && (
+      <View
+        className="absolute top-full left-0 right-0 mt-1 z-30"
+        style={{
+          maxHeight: 100,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 3.84,
+          elevation: 5,
+        }}
+      >
+        <View
+          className={`border rounded-xl overflow-hidden ${
+            isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
+          }`}
+        >
+          <FlatList
+            data={filteredOutlets}
+            keyExtractor={item => item.id}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={true}
+            style={{ maxHeight: 300 }} // Match container height
+            contentContainerStyle={{ paddingBottom: 8 }}
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => handleSelectOutlet(item)}
+                className={`px-4 py-3 border-b ${
+                  isDark ? 'border-gray-700 active:bg-gray-700' : 'border-gray-200 active:bg-gray-100'
+                }`}
+              >
+                <Text
+                  className={`font-semibold ${
+                    isDark ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  {item.storeName}
+                </Text>
+                <Text
+                  className={`text-sm mt-1 ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  }`}
+                >
+                  {item.propName} • {item.phoneNumber}
+                </Text>
+                <Text
+                  className={`text-xs mt-0.5 ${
+                    isDark ? 'text-gray-500' : 'text-gray-600'
+                  }`}
+                  numberOfLines={1}
+                >
+                  {[item.street, item.route, item.locality].filter(Boolean).join(', ')}
+                </Text>
+              </Pressable>
+            )}
+          />
+        </View>
+      </View>
+    )}
+  </View>
+);
   const renderSelectedOutlet = () => (
     <Pressable
       onPress={() => {

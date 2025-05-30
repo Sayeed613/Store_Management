@@ -1,5 +1,5 @@
-import { View, Text, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { ScrollView, Text, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContextProvider';
 
 const StatCard = ({ title, value, count, icon, color }) => {

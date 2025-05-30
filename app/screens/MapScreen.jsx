@@ -1,12 +1,13 @@
-import { Stack } from 'expo-router';
-import { View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { View } from 'react-native';
 import LocationMap from '../components/maps/LocationMap';
 
 export default function MapScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+
+
 
   const initialLocation = params.location
     ? JSON.parse(params.location)

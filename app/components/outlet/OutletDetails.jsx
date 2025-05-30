@@ -1,14 +1,13 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, updateDoc, where, limit } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { ROUTES } from '../../constants/outlet.constants';
 import { useTheme } from '../../context/ThemeContextProvider';
 import { db } from '../../services/firebase/config';
-import { formatCurrency } from '../../utils/currency';
 import { Select } from '../forms/Select';
-import { ROUTES } from '../../constants/outlet.constants';
 import TransactionList from '../transactions/TransactionList';
 
 const INITIAL_TRANSACTION_LIMIT = 5;
@@ -214,22 +213,7 @@ export default function OutletDetail() {
   }, [editedData, params.outletId]);
 
 
-   const formatDateTime = useCallback((dateStr) => {
-    if (!dateStr) return 'No date';
-    try {
-      const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
-      return date.toLocaleString('en-IN', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch (error) {
-      console.error('Date formatting error:', error);
-      return 'Invalid date';
-    }
-  }, []);
+
 
   const formatAddress = useCallback(() => {
     const addressParts = [

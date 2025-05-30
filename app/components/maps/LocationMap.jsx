@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import * as Location from 'expo-location';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const LocationMap = ({ initialLocation, onLocationSelect, onCancel }) => {
@@ -54,30 +54,17 @@ const LocationMap = ({ initialLocation, onLocationSelect, onCancel }) => {
   return (
     <View style={styles.container}>
       <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        initialRegion={{
-          ...selectedLocation,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        }}
-        showsUserLocation={true}
-        showsMyLocationButton={false}
-        onPress={(e) => {
-          setSelectedLocation(e.nativeEvent.coordinate);
-          mapRef.current?.animateToRegion(
-            {
-              ...e.nativeEvent.coordinate,
-              latitudeDelta: 0.002,
-              longitudeDelta: 0.002,
-            },
-            500
-          );
-        }}
-      >
-        {selectedLocation && <Marker coordinate={selectedLocation} draggable={false} />}
-      </MapView>
+  ref={mapRef}
+  provider={PROVIDER_GOOGLE}
+  style={styles.map}
+  initialRegion={{
+    ...selectedLocation,
+    latitudeDelta: 0.005,
+    longitudeDelta: 0.005,
+  }}
+  showsUserLocation={true}
+  showsMyLocationButton={false}
+/>
 
       <SafeAreaView edges={['top']} style={styles.topButtons}>
         <Pressable onPress={onCancel} style={styles.backButton}>

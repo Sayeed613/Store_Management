@@ -55,6 +55,15 @@ export default function Layout() {
           }}
         />
         <Tabs.Screen
+          name="OrderHistory"
+          options={{
+            tabBarLabel: 'Order History',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="file-tray-full-outline" color={color} size={size} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="admin"
           options={{
             tabBarLabel: 'Admin',
