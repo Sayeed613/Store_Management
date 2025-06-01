@@ -40,6 +40,41 @@ const StatusBadge = ({ status, isDark }) => {
   );
 };
 
+const PaymentHistory = ({ payments, isDark }) => {
+  if (!payments?.length) return null;
+
+  return (
+    <View className="mt-2 pl-12 border-t border-gray-700/20 pt-2">
+      <Text className={`text-xs font-medium mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+        Payment History
+      </Text>
+      <View className="space-y-2">
+        {payments.map((payment, index) => (
+          <View key={index} className="flex-row justify-between items-center">
+            <View className="flex-row items-center space-x-2">
+              <MaterialIcons
+                name="payment"
+                size={14}
+                color={isDark ? '#9ca3af' : '#4b5563'}
+              />
+              <Text className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                {new Date(payment.date).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric'
+                })}
+              </Text>
+            </View>
+            <Text className={`text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              ₹{payment.amount.toLocaleString('en-IN')}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+};
+
 const TransactionItem = ({ transaction, isDark, onDelete }) => {
   const renderRightActions = () => (
     <Pressable
@@ -63,20 +98,22 @@ const TransactionItem = ({ transaction, isDark, onDelete }) => {
     </Pressable>
   );
 
+  const totalPaid = transaction.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
+  const remainingAmount = transaction.amount - totalPaid;
+
   return (
     <Swipeable renderRightActions={renderRightActions}>
       <Animated.View
         entering={FadeIn}
         className={`p-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}
       >
-        <View className="flex-row  justify-between items-start">
+        <View className="flex-row justify-between items-start">
           <View className="flex-1">
             <View className="flex-row gap-2 items-center space-x-2">
-              <View className={`w-10 h-10 marker:  rounded-full items-center justify-center ${
+              <View className={`w-10 h-10 rounded-full items-center justify-center ${
                 isDark ? 'bg-gray-700' : 'bg-gray-100'
               }`}>
                 <MaterialIcons
-                className=""
                   name={transaction.salesType === 'Cash' ? 'payments' : 'account-balance'}
                   size={20}
                   color={isDark ? '#9ca3af' : '#4b5563'}
@@ -101,11 +138,40 @@ const TransactionItem = ({ transaction, isDark, onDelete }) => {
 
           <View className="items-end space-y-1">
             <StatusBadge status={transaction.status} isDark={isDark} />
-            <Text className={`text-xs   ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            <Text className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               {transaction.salesType} • {transaction.purchaseType}
             </Text>
           </View>
         </View>
+
+        {transaction.salesType === 'Credit' && (
+          <View className="mt-3 pl-12">
+            <View className="flex-row justify-between">
+              <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                Paid Amount:
+              </Text>
+              <Text className={`text-sm font-medium ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+                ₹{totalPaid.toLocaleString('en-IN')}
+              </Text>
+            </View>
+            {remainingAmount > 0 && (
+              <View className="flex-row justify-between">
+                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Remaining:
+                </Text>
+                <Text className={`text-sm font-medium ${
+                  isDark ? 'text-red-400' : 'text-red-600'
+                }`}>
+                  ₹{remainingAmount.toLocaleString('en-IN')}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {transaction.salesType === 'Credit' && transaction.payments?.length > 0 && (
+          <PaymentHistory payments={transaction.payments} isDark={isDark} />
+        )}
 
         {transaction.notes && (
           <Text className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>

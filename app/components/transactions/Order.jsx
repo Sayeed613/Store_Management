@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import { addDoc, collection, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -102,78 +102,77 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     setShowSuggestions(false);
   };
 
-const handleSaveSale = async () => {
-  if (!selectedOutlet) {
-    Alert.alert('Error', 'Please select an outlet');
-    return;
-  }
 
-  setLoading(true);
-  try {
-    let saleAmount = purchaseType === 'Credit' ? Number(totalAmount) : Number(amount);
-    let paid = purchaseType === 'Credit' ? Number(paidAmount) : saleAmount;
-    let balance = purchaseType === 'Credit' ? saleAmount - paid : 0;
-
-    // Create initial payment record with regular Date object
-    const initialPayment = paid > 0 ? [{
-      amount: paid,
-      paymentDate: new Date(), // Use regular Date instead of serverTimestamp
-      paymentType: purchaseType,
-      createdAt: new Date(), // Use regular Date instead of serverTimestamp
-      notes: 'Initial payment'
-    }] : [];
-
-    const saleData = {
-      outletId: selectedOutlet.id,
-      storeName: selectedOutlet.storeName,
-      salesType,
-      purchaseType,
-      amount: saleAmount,
-      paidAmount: paid,
-      balance,
-      status: balance === 0 ? 'Completed' : 'Pending',
-      customerName: customerName.trim(),
-      orderDate: new Date(), // Use regular Date for orderDate
-      createdAt: serverTimestamp(), // Keep serverTimestamp for top-level timestamp
-      payments: initialPayment,
-      totalPaid: paid,
-      remainingBalance: balance
-    };
-
-    const saleRef = await addDoc(collection(db, 'sales'), saleData);
-
-    // Update outlet information
-    const outletRef = doc(db, 'outlets', selectedOutlet.id);
-    await updateDoc(outletRef, {
-      lastOrderAmount: saleAmount,
-      lastOrderDate: new Date(),
-      lastOrderId: saleRef.id,
-      lastOrderType: purchaseType,
-      lastOrderStatus: saleData.status,
-      lastSalesType: salesType,
-      totalOrders: (selectedOutlet.totalOrders || 0) + 1,
-      totalAmount: (selectedOutlet.totalAmount || 0) + saleAmount,
-      pendingAmount: (selectedOutlet.pendingAmount || 0) + balance,
-      updatedAt: serverTimestamp()
-    });
-
-    if (typeof onOrderSaved === 'function') {
-      onOrderSaved({
-        ...saleData,
-        id: saleRef.id
-      });
+  const handleSaveSale = async () => {
+    if (!selectedOutlet) {
+      Alert.alert('Error', 'Please select an outlet');
+      return;
     }
 
-    Alert.alert('Success', 'Order saved successfully', [
-      { text: 'OK', onPress: handleClose }
-    ]);
-  } catch (error) {
-    console.error('Failed to save order:', error);
-    Alert.alert('Error', 'Failed to save order. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
+    if (purchaseType === 'Credit' && (!totalAmount || !paidAmount)) {
+      Alert.alert('Error', 'Please enter both total amount and paid amount for credit sales');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const saleAmount = purchaseType === 'Credit' ? Number(totalAmount) : Number(amount);
+      const paid = purchaseType === 'Credit' ? Number(paidAmount) : saleAmount;
+      const balance = Math.max(0, saleAmount - paid);
+
+      const initialPayment = paid > 0 ? [{
+        amount: paid,
+        date: orderDate, // Use selected date instead of new Date()
+        paymentType: 'Cash',
+        notes: 'Initial payment'
+      }] : [];
+
+      const saleData = {
+        outletId: selectedOutlet.id,
+        storeName: selectedOutlet.storeName,
+        salesType,
+        purchaseType,
+        amount: saleAmount,
+        totalPaid: paid,
+        remainingBalance: balance,
+        status: balance === 0 ? 'Completed' : 'Pending',
+        customerName: customerName.trim(),
+        orderDate: orderDate, // Use selected date
+        createdAt: serverTimestamp(),
+        payments: initialPayment
+      };
+
+      const saleRef = await addDoc(collection(db, 'sales'), saleData);
+
+      // Update outlet with latest sales info
+      const outletRef = doc(db, 'outlets', selectedOutlet.id);
+      await updateDoc(outletRef, {
+        lastOrderAmount: saleAmount,
+        lastOrderDate: orderDate, // Use selected date
+        lastOrderId: saleRef.id,
+        lastOrderType: purchaseType,
+        lastOrderStatus: balance === 0 ? 'Completed' : 'Pending',
+        lastSalesType: salesType,
+        totalOrders: increment(1), // Now increment will work
+        totalAmount: increment(saleAmount),
+        pendingAmount: increment(balance),
+        updatedAt: serverTimestamp()
+      });
+
+      if (typeof onOrderSaved === 'function') {
+        onOrderSaved({ ...saleData, id: saleRef.id });
+      }
+
+      Alert.alert('Success', 'Order saved successfully', [
+        { text: 'OK', onPress: handleClose }
+      ]);
+    } catch (error) {
+      console.error('Failed to save order:', error);
+      Alert.alert('Error', 'Failed to save order. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   const handleClose = () => {

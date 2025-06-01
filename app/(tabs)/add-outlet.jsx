@@ -45,22 +45,22 @@ const AddOutlet = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [routeOptions, setRouteOptions] = useState([]);
 
-    const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
 
   useEffect(() => {
-  const loadRoutes = async () => {
-    try {
-      const routes = await fetchRoutes();
-      setRouteOptions(routes);
-    } catch (err) {
-      console.error('Failed to load routes:', err);
-      Alert.alert('Error', 'Could not fetch route options');
-    }
-  };
+    const loadRoutes = async () => {
+      try {
+        const routes = await fetchRoutes();
+        setRouteOptions(routes);
+      } catch (err) {
+        console.error('Failed to load routes:', err);
+        Alert.alert('Error', 'Could not fetch route options');
+      }
+    };
 
-  loadRoutes();
-}, []);
+    loadRoutes();
+  }, []);
 
 
   const handleCancel = () => {
@@ -98,7 +98,7 @@ const AddOutlet = () => {
     }
   };
 
-   const updateFormField = (field, value) => {
+  const updateFormField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setHasUnsavedChanges(true);
   };
@@ -140,7 +140,7 @@ const AddOutlet = () => {
     }
   }, []);
 
- useFocusEffect(
+  useFocusEffect(
     useCallback(() => {
       const checkLocation = async () => {
         if (params.location) {
@@ -207,7 +207,7 @@ const AddOutlet = () => {
     return !snapshot.empty;
   };
 
-   const handleLocationPress = async () => {
+  const handleLocationPress = async () => {
     await AsyncStorage.setItem('outletFormData', JSON.stringify(formData));
     router.push({
       pathname: '/screens/MapScreen',
@@ -217,77 +217,75 @@ const AddOutlet = () => {
     });
   };
 
-const handleSubmit = async () => {
-  const fullPhoneNumber = formData.phoneNumber ? `+91${formData.phoneNumber}` : '';
+  const handleSubmit = async () => {
+    const fullPhoneNumber = formData.phoneNumber ? `+91${formData.phoneNumber}` : '';
 
-  if (!formData.storeName || !fullPhoneNumber || !formData.location || !formData.route) {
-    Alert.alert('Missing Information', 'Please fill all required fields and add location');
-    return;
-  }
-
-  setSaveLoading(true);
-  try {
-    if (!params.outletId && await phoneExists(fullPhoneNumber)) {
-      Alert.alert(
-        'Duplicate Entry',
-        'An outlet with this phone number already exists.',
-        [{ text: 'OK' }]
-      );
+    if (!formData.storeName || !fullPhoneNumber || !formData.location || !formData.route) {
+      Alert.alert('Missing Information', 'Please fill all required fields and add location');
       return;
     }
 
-    const fullAddress = [
-      formData.street,
-      formData.locality,
-      formData.landmark,
-    ].filter(Boolean).join(', ');
+    setSaveLoading(true);
+    try {
+      if (!params.outletId && await phoneExists(fullPhoneNumber)) {
+        Alert.alert(
+          'Duplicate Entry',
+          'An outlet with this phone number already exists.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
 
-    const outletData = {
-      propName: `${formData.firstName} ${formData.lastName}`.trim(),
-      phoneNumber: fullPhoneNumber,
-      storeName: formData.storeName,
-      route: formData.route,
-      street: formData.street,
-      locality: formData.locality,
-      landmark: formData.landmark,
-      address: fullAddress,
-      location: formData.location,
-      updatedAt: serverTimestamp(),
-    };
+      const fullAddress = [
+        formData.street,
+        formData.locality,
+        formData.landmark,
+      ].filter(Boolean).join(', ');
 
-    if (params.outletId) {
-      await updateDoc(doc(db, 'outlets', params.outletId), outletData);
-      Alert.alert('Success', 'Outlet updated successfully');
-    } else {
-      await addDoc(collection(db, 'outlets'), {
-        ...outletData,
-        createdAt: serverTimestamp(),
-      });
-      Alert.alert('Success', 'Outlet added successfully');
-      await AsyncStorage.removeItem('outletFormData');
-      setFormData(FORM_INITIAL_STATE);
-      setLocationConfirmed(false);
-      setHasUnsavedChanges(false);
+      const outletData = {
+        propName: `${formData.firstName} ${formData.lastName}`.trim(),
+        phoneNumber: fullPhoneNumber,
+        storeName: formData.storeName,
+        route: formData.route,
+        street: formData.street,
+        locality: formData.locality,
+        landmark: formData.landmark,
+        address: fullAddress,
+        location: formData.location,
+        updatedAt: serverTimestamp(),
+      };
+
+      if (params.outletId) {
+        await updateDoc(doc(db, 'outlets', params.outletId), outletData);
+        Alert.alert('Success', 'Outlet updated successfully');
+      } else {
+        await addDoc(collection(db, 'outlets'), {
+          ...outletData,
+          createdAt: serverTimestamp(),
+        });
+        Alert.alert('Success', 'Outlet added successfully');
+        await AsyncStorage.removeItem('outletFormData');
+        setFormData(FORM_INITIAL_STATE);
+        setLocationConfirmed(false);
+        setHasUnsavedChanges(false);
+      }
+
+      router.replace('/(tabs)');
+    } catch (err) {
+      console.error('Error:', err);
+      Alert.alert('Error', 'Failed to save outlet. Please try again.');
+    } finally {
+      setSaveLoading(false);
     }
-
-    router.replace('/(tabs)');
-  } catch (err) {
-    console.error('Error:', err);
-    Alert.alert('Error', 'Failed to save outlet. Please try again.');
-  } finally {
-    setSaveLoading(false);
-  }
-};
+  };
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      // Reset form data
       await AsyncStorage.removeItem('outletFormData');
       setFormData(FORM_INITIAL_STATE);
       setLocationConfirmed(false);
       setHasUnsavedChanges(false);
 
-      // Reset routes
       const routes = await fetchRoutes();
       setRouteOptions(routes);
     } catch (error) {
@@ -354,13 +352,13 @@ const handleSubmit = async () => {
           />
 
           <Select
-  label="Route *"
-  value={formData.route}
-  options={routeOptions}
-  onChange={(value) => updateFormField('route', value)}
-  placeholder="Select route"
-  required
-/>
+            label="Route *"
+            value={formData.route}
+            options={routeOptions}
+            onChange={(value) => updateFormField('route', value)}
+            placeholder="Select route"
+            required
+          />
 
           <FormField
             label="Street"

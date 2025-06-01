@@ -6,12 +6,11 @@ import {
   doc,
   getDoc,
   getDocs,
-  limit,
   orderBy,
   query,
   serverTimestamp,
   updateDoc,
-  where,
+  where
 } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -27,6 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ROUTES } from '../../constants/outlet.constants';
 import { useTheme } from '../../context/ThemeContextProvider';
 import { db } from '../../services/firebase/config';
+import SalesTrackingGraph from '../analytics/SalesTrackingGraph';
 import { Select } from '../forms/Select';
 import TransactionList from '../transactions/TransactionList';
 
@@ -55,6 +55,7 @@ export default function OutletDetail() {
     pincode: '',
   });
 
+
   const calculateMonthlySales = useCallback((sales) => {
     const currentDate = new Date();
     const currentMonth = currentDate.getMonth();
@@ -73,48 +74,62 @@ export default function OutletDetail() {
     }, 0);
   }, []);
 
+
   useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'sales'));
+        const data = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          orderDate: doc.data().orderDate?.toDate() // Convert Firestore timestamp
+        }));
+        setTransactions(data);
+      } catch (error) {
+        console.error('Error fetching transactions:', error);
+      }
+    };
+
+    fetchTransactions();
+  }, []);
+
+  useEffect(() => {
+
     const fetchData = async () => {
       if (!params.outletId) return;
 
       try {
+        setLoading(true);
         const outletRef = doc(db, 'outlets', params.outletId);
         const outletSnap = await getDoc(outletRef);
 
         if (outletSnap.exists()) {
-          const data = {
-            id: outletSnap.id,
-            ...outletSnap.data(),
-          };
+          const data = { id: outletSnap.id, ...outletSnap.data() };
           setOutletData(data);
-          setEditedData({
-            storeName: data.storeName || '',
-            propName: data.propName || '',
-            phoneNumber: data.phoneNumber || '',
-            route: data.route || '',
-            street: data.street || '',
-            locality: data.locality || '',
-            landmark: data.landmark || '',
-            pincode: data.pincode || '',
-          });
         }
 
+        // Update query to filter by outletId
         const q = query(
           collection(db, 'sales'),
           where('outletId', '==', params.outletId),
-          orderBy('orderDate', 'desc'),
-          limit(showAllTransactions ? 50 : INITIAL_TRANSACTION_LIMIT)
+          orderBy('orderDate', 'desc')
         );
 
         const transactionSnap = await getDocs(q);
-        const sales = transactionSnap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          orderDate: doc.data().orderDate?.toDate(),
-        }));
+        const sales = transactionSnap.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            orderDate: data.orderDate?.toDate ? data.orderDate.toDate() : new Date(data.orderDate),
+            amount: Number(data.amount || 0),
+            purchaseType: data.purchaseType || 'Cash'
+          };
+        });
 
+        console.log('Fetched sales:', sales); 
         setTransactions(sales);
-        setMonthlySales(calculateMonthlySales(sales));
+
       } catch (error) {
         console.error('Failed to fetch data:', error);
         Alert.alert('Error', 'Failed to load outlet details');
@@ -122,7 +137,6 @@ export default function OutletDetail() {
         setLoading(false);
       }
     };
-
     fetchData();
   }, [params.outletId, showAllTransactions, calculateMonthlySales]);
 
@@ -252,19 +266,13 @@ export default function OutletDetail() {
     router.back();
   }, []);
 
-  const SalesSummaryCard = ({ monthlySales, isDark }) => (
-  <View className={`p-4 rounded-xl mb-4 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-    <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-      This Month's Sales
-    </Text>
-    <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-      ₹{monthlySales.toLocaleString('en-IN', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      })}
-    </Text>
-  </View>
-);
+
+  const getDisplayedTransactions = useCallback(() => {
+    return showAllTransactions
+      ? transactions
+      : transactions.slice(0, INITIAL_TRANSACTION_LIMIT);
+  }, [transactions, showAllTransactions]);
+
   const renderStoreDetails = () => {
     return isEditing ? (
       <View className="flex flex-col gap-4 space-y-4">
@@ -279,13 +287,12 @@ export default function OutletDetail() {
               field === 'propName'
                 ? 'Owner Name'
                 : field === 'storeName'
-                ? 'Store Name'
-                : 'Phone Number'
+                  ? 'Store Name'
+                  : 'Phone Number'
             }
             keyboardType={field === 'phoneNumber' ? 'phone-pad' : 'default'}
-            className={`px-4 py-3 rounded-xl border focus:border-blue-500 ${
-              isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-300 text-black'
-            }`}
+            className={`px-4 py-3 rounded-xl border focus:border-blue-500 ${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-300 text-black'
+              }`}
             placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
           />
         ))}
@@ -326,7 +333,6 @@ export default function OutletDetail() {
         </Pressable>
       </View>
     ) : (
-      // ... rest of the component remains unchanged
       renderNonEditableDetails()
     );
   };
@@ -382,11 +388,29 @@ export default function OutletDetail() {
   );
 
   const renderTransactions = () => (
-    <TransactionList
-      transactions={transactions}
-      isDark={isDark}
-      onDeleteTransaction={handleDeleteTransaction}
-    />
+    <View>
+      <TransactionList
+        transactions={getDisplayedTransactions()}
+        isDark={isDark}
+        onDeleteTransaction={handleDeleteTransaction}
+      />
+
+      {transactions.length > INITIAL_TRANSACTION_LIMIT && (
+        <Pressable
+          onPress={() => setShowAllTransactions(!showAllTransactions)}
+          className={`mt-4 p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'
+            } border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+        >
+          <Text className={`text-center ${isDark ? 'text-blue-400' : 'text-blue-600'
+            }`}>
+            {showAllTransactions
+              ? 'Show Less'
+              : `Show More (${transactions.length - INITIAL_TRANSACTION_LIMIT} more)`
+            }
+          </Text>
+        </Pressable>
+      )}
+    </View>
   );
 
   if (loading) {
@@ -421,7 +445,7 @@ export default function OutletDetail() {
         >
           {renderStoreDetails()}
         </View>
-              <SalesSummaryCard monthlySales={monthlySales} isDark={isDark} />
+        <SalesTrackingGraph transactions={transactions} />
         {renderTransactions()}
       </ScrollView>
     </SafeAreaView>
