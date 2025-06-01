@@ -33,7 +33,7 @@ const processData = useMemo(() => {
         month: date.toLocaleString('default', { month: 'short' }),
         year: date.getFullYear(),
         totalSales: 0,
-        creditSales: 0,
+        creditPending: 0, // Changed from creditSales to creditPending
         timestamp: date.getTime()
       };
     });
@@ -42,17 +42,13 @@ const processData = useMemo(() => {
     transactions.forEach(transaction => {
       if (!transaction.orderDate) return;
 
-      // Convert Firebase timestamp to Date
       let transDate;
       try {
         if (transaction.orderDate?.toDate) {
-          // Handle Firestore Timestamp
           transDate = transaction.orderDate.toDate();
         } else if (transaction.orderDate?.seconds) {
-          // Handle timestamp seconds
           transDate = new Date(transaction.orderDate.seconds * 1000);
         } else {
-          // Handle regular date string/object
           transDate = new Date(transaction.orderDate);
         }
 
@@ -64,16 +60,19 @@ const processData = useMemo(() => {
         if (monthData) {
           const amount = Number(transaction.amount) || 0;
           monthData.totalSales += amount;
+
+          // Calculate pending credit instead of total credit amount
           if (transaction.purchaseType === 'Credit') {
-            monthData.creditSales += amount;
+            const totalPaid = (transaction.payments || [])
+              .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+            const pendingAmount = amount - totalPaid;
+            monthData.creditPending += pendingAmount; // Add only pending amount
           }
         }
       } catch (error) {
         console.error('Transaction date processing error:', error, transaction);
       }
     });
-
-    console.log('Processed monthly data:', last6Months);
 
     return {
       labels: last6Months.map(m => m.month),
@@ -84,20 +83,16 @@ const processData = useMemo(() => {
           strokeWidth: 2
         },
         {
-          data: last6Months.map(m => m.creditSales),
+          data: last6Months.map(m => m.creditPending), // Show pending credit
           color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
           strokeWidth: 2
         }
       ],
-      legend: ['Total Sales', 'Credit Sales']
+      legend: ['Total Sales', 'Pending Credit'] // Updated legend
     };
   } catch (error) {
     console.error('Data processing error:', error);
-    return {
-      labels: [],
-      datasets: [{ data: [] }, { data: [] }],
-      legend: ['Total Sales', 'Credit Sales']
-    };
+    return defaultData;
   }
 }, [transactions]);
 
@@ -124,8 +119,13 @@ const totals = useMemo(() => {
             transDate.getFullYear() === currentYear) {
           const amount = Number(transaction.amount) || 0;
           acc.monthTotal += amount;
+
+          // Calculate pending credit
           if (transaction.purchaseType === 'Credit') {
-            acc.monthCredit += amount;
+            const totalPaid = (transaction.payments || [])
+              .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+            const pendingAmount = amount - totalPaid;
+            acc.monthCredit += pendingAmount; // Add only pending amount
           }
         }
       } catch (error) {

@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import { addDoc, collection, doc, getDocs, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, increment, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -103,98 +103,100 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
   };
 
 
-  const handleSaveSale = async () => {
-    if (!selectedOutlet) {
-      Alert.alert('Error', 'Please select an outlet');
-      return;
-    }
+ const handleSaveSale = async () => {
+  if (!selectedOutlet) {
+    Alert.alert('Error', 'Please select an outlet');
+    return;
+  }
 
-    if (purchaseType === 'Credit' && (!totalAmount || !paidAmount)) {
+  // Validate based on purchase type
+  if (purchaseType === 'Credit') {
+    if (!totalAmount || !paidAmount) {
       Alert.alert('Error', 'Please enter both total amount and paid amount for credit sales');
       return;
     }
-
-    setLoading(true);
-    try {
-      const saleAmount = purchaseType === 'Credit' ? Number(totalAmount) : Number(amount);
-      const paid = purchaseType === 'Credit' ? Number(paidAmount) : saleAmount;
-      const balance = Math.max(0, saleAmount - paid);
-
-      const initialPayment = paid > 0 ? [{
-        amount: paid,
-        date: orderDate, // Use selected date instead of new Date()
-        paymentType: 'Cash',
-        notes: 'Initial payment'
-      }] : [];
-
-      const saleData = {
-        outletId: selectedOutlet.id,
-        storeName: selectedOutlet.storeName,
-        salesType,
-        purchaseType,
-        amount: saleAmount,
-        totalPaid: paid,
-        remainingBalance: balance,
-        status: balance === 0 ? 'Completed' : 'Pending',
-        customerName: customerName.trim(),
-        orderDate: orderDate, // Use selected date
-        createdAt: serverTimestamp(),
-        payments: initialPayment
-      };
-
-      const saleRef = await addDoc(collection(db, 'sales'), saleData);
-
-      // Update outlet with latest sales info
-      const outletRef = doc(db, 'outlets', selectedOutlet.id);
-      await updateDoc(outletRef, {
-        lastOrderAmount: saleAmount,
-        lastOrderDate: orderDate, // Use selected date
-        lastOrderId: saleRef.id,
-        lastOrderType: purchaseType,
-        lastOrderStatus: balance === 0 ? 'Completed' : 'Pending',
-        lastSalesType: salesType,
-        totalOrders: increment(1), // Now increment will work
-        totalAmount: increment(saleAmount),
-        pendingAmount: increment(balance),
-        updatedAt: serverTimestamp()
-      });
-
-      if (typeof onOrderSaved === 'function') {
-        onOrderSaved({ ...saleData, id: saleRef.id });
-      }
-
-      Alert.alert('Success', 'Order saved successfully', [
-        { text: 'OK', onPress: handleClose }
-      ]);
-    } catch (error) {
-      console.error('Failed to save order:', error);
-      Alert.alert('Error', 'Failed to save order. Please try again.');
-    } finally {
-      setLoading(false);
+  } else {
+    if (!amount) {
+      Alert.alert('Error', 'Please enter the amount');
+      return;
     }
-  };
+  }
 
+  setLoading(true);
+  try {
+    const saleAmount = purchaseType === 'Credit' ? Number(totalAmount) : Number(amount);
+    const paid = purchaseType === 'Credit' ? Number(paidAmount) : saleAmount;
+    const balance = Math.max(0, saleAmount - paid);
 
-  const handleClose = () => {
-    setSearchText('');
-    setSelectedOutlet(null);
-    setCustomerName('');
-    setSalesType(salesTypes[0]);
-    setPurchaseType(purchaseTypes[0]);
-    setAmount('');
-    setOrderDate(new Date());
-    setShowSuggestions(false);
-    if (typeof onClose === 'function') {
-      onClose();
+    const initialPayment = paid > 0 ? [{
+      amount: paid,
+      date: orderDate,
+      paymentType: 'Cash',
+      notes: 'Initial payment'
+    }] : [];
+
+    const saleData = {
+      outletId: selectedOutlet.id,
+      storeName: selectedOutlet.storeName,
+      salesType,
+      purchaseType,
+      amount: saleAmount,
+      totalPaid: paid,
+      remainingBalance: balance,
+      status: balance === 0 ? 'Completed' : 'Pending',
+      customerName: customerName.trim(),
+      orderDate,
+      createdAt: serverTimestamp(),
+      payments: initialPayment
+    };
+
+    const saleRef = await addDoc(collection(db, 'sales'), saleData);
+
+    // Update outlet
+    const outletRef = doc(db, 'outlets', selectedOutlet.id);
+    await updateDoc(outletRef, {
+      lastOrderAmount: saleAmount,
+      lastOrderDate: orderDate,
+      lastOrderId: saleRef.id,
+      lastOrderType: purchaseType,
+      lastOrderStatus: balance === 0 ? 'Completed' : 'Pending',
+      lastSalesType: salesType,
+      totalOrders: increment(1),
+      totalAmount: increment(saleAmount),
+      pendingAmount: increment(balance),
+      updatedAt: serverTimestamp()
+    });
+
+    // Update local state and close modal
+    if (typeof onOrderSaved === 'function') {
+      onOrderSaved({ ...saleData, id: saleRef.id });
     }
-  };
-  useEffect(() => {
-    if (purchaseType !== 'Credit') {
-      setTotalAmount('');
-      setPaidAmount('');
-    }
-  }, [purchaseType]);
 
+    handleClose(); // Close modal first
+    Alert.alert('Success', 'Order saved successfully');
+
+  } catch (error) {
+    console.error('Failed to save order:', error);
+    Alert.alert('Error', 'Failed to save order. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Update handleClose to reset all fields
+const handleClose = () => {
+  setSearchText('');
+  setSelectedOutlet(null);
+  setCustomerName('');
+  setSalesType(salesTypes[0]);
+  setPurchaseType(purchaseTypes[0]);
+  setAmount('');
+  setTotalAmount('');
+  setPaidAmount('');
+  setOrderDate(new Date());
+  setShowSuggestions(false);
+  onClose?.();
+};
 
 
   const renderSearchBar = () => (
@@ -398,38 +400,43 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
                       ))}
                     </View>
 
-                    {/* Add the new inputs here */}
-                    {purchaseType === 'Credit' && (
-                      <>
+                      {purchaseType === 'Cash' ? (
                         <TextInput
-                          placeholder="Total Amount"
+                          placeholder="Amount"
                           placeholderTextColor={isDark ? '#888' : '#999'}
-                          value={totalAmount}
-                          onChangeText={setTotalAmount}
+                          value={amount}
+                          onChangeText={setAmount}
                           keyboardType="numeric"
                           className={`border rounded-xl px-4 py-3 mt-4 ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
                             }`}
                         />
+                      ) : (
+                        <>
+                          <TextInput
+                            placeholder="Total Amount"
+                            placeholderTextColor={isDark ? '#888' : '#999'}
+                            value={totalAmount}
+                            onChangeText={setTotalAmount}
+                            keyboardType="numeric"
+                            className={`border rounded-xl px-4 py-3 mt-4 ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
+                              }`}
+                          />
 
-                        <TextInput
-                          placeholder="Paid Amount"
-                          placeholderTextColor={isDark ? '#888' : '#999'}
-                          value={paidAmount}
-                          onChangeText={setPaidAmount}
-                          keyboardType="numeric"
-                          className={`border rounded-xl px-4 py-3 mt-4 ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
-                            }`}
-                        />
+                          <TextInput
+                            placeholder="Paid Amount"
+                            placeholderTextColor={isDark ? '#888' : '#999'}
+                            value={paidAmount}
+                            onChangeText={setPaidAmount}
+                            keyboardType="numeric"
+                            className={`border rounded-xl px-4 py-3 mt-4 ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
+                              }`}
+                          />
 
-                        <Text
-                          className={`mt-2 font-semibold ${isDark ? 'text-white' : 'text-gray-900'
-                            }`}
-                        >
-                          Balance: {Math.max(0, (Number(totalAmount) || 0) - (Number(paidAmount) || 0)).toFixed(2)}
-                        </Text>
-                      </>
-                    )}
-
+                          <Text className={`mt-2 font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            Balance: {Math.max(0, (Number(totalAmount) || 0) - (Number(paidAmount) || 0)).toFixed(2)}
+                          </Text>
+                        </>
+                      )}
                   </View>
 
 

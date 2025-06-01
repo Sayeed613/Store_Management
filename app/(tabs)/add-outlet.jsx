@@ -321,7 +321,7 @@ const AddOutlet = () => {
             required
           />
 
-          <View className="flex-row gap-2 mb-4">
+          <View className="flex-row gap-2 mb-2">
             <View className="flex-1">
               <FormField
                 label="First Name *"
