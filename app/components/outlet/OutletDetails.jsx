@@ -14,13 +14,14 @@ import {
 } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   Pressable,
   ScrollView,
   Text,
-  TextInput,
-  View,
+  Input,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ROUTES } from '../../constants/outlet.constants';
@@ -42,8 +43,9 @@ export default function OutletDetail() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [monthlySales, setMonthlySales] = useState(0);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
+
   const [editedData, setEditedData] = useState({
     storeName: '',
     propName: '',
@@ -82,7 +84,7 @@ export default function OutletDetail() {
         const data = querySnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          orderDate: doc.data().orderDate?.toDate() // Convert Firestore timestamp
+          orderDate: doc.data().orderDate?.toDate()
         }));
         setTransactions(data);
       } catch (error) {
@@ -93,43 +95,43 @@ export default function OutletDetail() {
     fetchTransactions();
   }, []);
 
-  useEffect(() => {
-
+   useEffect(() => {
     const fetchData = async () => {
-      if (!params.outletId) return;
+      if (!params.id) return;
 
       try {
         setLoading(true);
-        const outletRef = doc(db, 'outlets', params.outletId);
+        const outletRef = doc(db, 'outlets', params.id);
         const outletSnap = await getDoc(outletRef);
 
         if (outletSnap.exists()) {
           const data = { id: outletSnap.id, ...outletSnap.data() };
           setOutletData(data);
+          setEditedData({
+            storeName: data.storeName || params.storeName || '',
+            propName: data.propName || params.propName || '',
+            phoneNumber: data.phoneNumber || params.phoneNumber || '',
+            route: data.route || '',
+            street: data.street || '',
+            locality: data.locality || '',
+            landmark: data.landmark || '',
+            pincode: data.pincode || '',
+          });
         }
-
-        // Update query to filter by outletId
-        const q = query(
+              const q = query(
           collection(db, 'sales'),
-          where('outletId', '==', params.outletId),
+          where('outletId', '==', params.id),
           orderBy('orderDate', 'desc')
         );
 
         const transactionSnap = await getDocs(q);
-        const sales = transactionSnap.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            orderDate: data.orderDate?.toDate ? data.orderDate.toDate() : new Date(data.orderDate),
-            amount: Number(data.amount || 0),
-            purchaseType: data.purchaseType || 'Cash'
-          };
-        });
+        const sales = transactionSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          orderDate: doc.data().orderDate?.toDate() || new Date(doc.data().orderDate)
+        }));
 
-        console.log('Fetched sales:', sales); 
         setTransactions(sales);
-
       } catch (error) {
         console.error('Failed to fetch data:', error);
         Alert.alert('Error', 'Failed to load outlet details');
@@ -137,16 +139,16 @@ export default function OutletDetail() {
         setLoading(false);
       }
     };
+
     fetchData();
-  }, [params.outletId, showAllTransactions, calculateMonthlySales]);
+  }, [params.id]);
 
   useEffect(() => {
     if (params.location) {
       try {
-        const parsed =
-          typeof params.location === 'string'
-            ? JSON.parse(params.location)
-            : params.location;
+        const parsed = typeof params.location === 'string'
+          ? JSON.parse(params.location)
+          : params.location;
 
         if (parsed?.latitude && parsed?.longitude) {
           setLocationData({
@@ -161,10 +163,16 @@ export default function OutletDetail() {
     }
   }, [params.location]);
 
+  const getDisplayedTransactions = useCallback(() => {
+    return showAllTransactions
+      ? transactions
+      : transactions.slice(0, INITIAL_TRANSACTION_LIMIT);
+  }, [transactions, showAllTransactions]);
+
   const handleDeleteTransaction = useCallback(async (transactionId) => {
     try {
       await deleteDoc(doc(db, 'sales', transactionId));
-      setTransactions((prev) => prev.filter((t) => t.id !== transactionId));
+      setTransactions(prev => prev.filter(t => t.id !== transactionId));
       Alert.alert('Success', 'Transaction deleted successfully');
     } catch (error) {
       console.error('Error deleting transaction:', error);
@@ -267,11 +275,6 @@ export default function OutletDetail() {
   }, []);
 
 
-  const getDisplayedTransactions = useCallback(() => {
-    return showAllTransactions
-      ? transactions
-      : transactions.slice(0, INITIAL_TRANSACTION_LIMIT);
-  }, [transactions, showAllTransactions]);
 
   const renderStoreDetails = () => {
     return isEditing ? (
@@ -397,12 +400,17 @@ export default function OutletDetail() {
 
       {transactions.length > INITIAL_TRANSACTION_LIMIT && (
         <Pressable
-          onPress={() => setShowAllTransactions(!showAllTransactions)}
+          onPress={() => {
+            // Simply toggle the state without triggering a reload
+            setShowAllTransactions(prev => !prev);
+          }}
           className={`mt-4 p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'
             } border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
         >
-          <Text className={`text-center ${isDark ? 'text-blue-400' : 'text-blue-600'
-            }`}>
+          <Text
+            className={`text-center ${isDark ? 'text-blue-400' : 'text-blue-600'
+              }`}
+          >
             {showAllTransactions
               ? 'Show Less'
               : `Show More (${transactions.length - INITIAL_TRANSACTION_LIMIT} more)`
@@ -416,8 +424,20 @@ export default function OutletDetail() {
   if (loading) {
     return (
       <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
+        <View
+          className={`flex-row items-center px-4 py-3 border-b ${
+            isDark ? 'border-gray-700' : 'border-gray-200'
+          }`}
+        >
+          <Pressable onPress={() => router.back()} className="mr-4 p-2">
+            <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
+          </Pressable>
+          <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            Loading Details...
+          </Text>
+        </View>
         <View className="flex-1 justify-center items-center">
-          <Text className={isDark ? 'text-white' : 'text-black'}>Loading...</Text>
+          <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
         </View>
       </SafeAreaView>
     );

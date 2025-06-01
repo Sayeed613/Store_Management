@@ -130,7 +130,6 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
       await batch.commit();
       setNewPayment('');
 
-      // Update local state
       const updatedOrder = {
         ...order,
         payments: [...(order.payments || []), newPaymentData],

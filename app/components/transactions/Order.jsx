@@ -102,6 +102,11 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     setShowSuggestions(false);
   };
 
+  useEffect(() => {
+    setAmount('');
+    setTotalAmount('');
+    setPaidAmount('');
+  }, [purchaseType])
 
  const handleSaveSale = async () => {
   if (!selectedOutlet) {
@@ -109,7 +114,6 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     return;
   }
 
-  // Validate based on purchase type
   if (purchaseType === 'Credit') {
     if (!totalAmount || !paidAmount) {
       Alert.alert('Error', 'Please enter both total amount and paid amount for credit sales');
@@ -172,7 +176,7 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
       onOrderSaved({ ...saleData, id: saleRef.id });
     }
 
-    handleClose(); // Close modal first
+    handleClose();
     Alert.alert('Success', 'Order saved successfully');
 
   } catch (error) {
@@ -183,7 +187,6 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
   }
 };
 
-// Update handleClose to reset all fields
 const handleClose = () => {
   setSearchText('');
   setSelectedOutlet(null);

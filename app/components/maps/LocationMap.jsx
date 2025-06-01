@@ -21,7 +21,7 @@ const LocationMap = ({ initialLocation, onLocationSelect, onCancel }) => {
 
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
-         timeout: 5000, // timeout after 10 seconds
+         timeout: 2000, 
         maximumAge: 2000,
       });
 

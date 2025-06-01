@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import {
   collection,
   getDocs,
@@ -15,7 +16,6 @@ import {
   View
 } from 'react-native';
 import Loader from '../components/common/Loader';
-import PaymentModal from '../components/transactions/PaymentModal';
 import { useTheme } from '../context/ThemeContextProvider';
 import { db } from '../services/firebase/config';
 import { filterOrdersByDateRange, getDateRanges } from '../utils/dataFilter';
@@ -23,20 +23,23 @@ import { filterOrdersByDateRange, getDateRanges } from '../utils/dataFilter';
 const OrderHistory = () => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const router = useRouter();
 
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedRange, setSelectedRange] = useState('thirtyDays');
-  const [modalVisible, setModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   const dateRanges = getDateRanges();
 
-  const fetchOrders = async (showRefresh = false) => {
+    const fetchOrders = async (showRefresh = false) => {
     try {
-      if (showRefresh) setIsRefreshing(true);
-      else setIsLoading(true);
+      if (showRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
 
       const outletsRef = collection(db, 'outlets');
       const outletsSnap = await getDocs(outletsRef);
@@ -61,8 +64,7 @@ const OrderHistory = () => {
           remainingBalance: data.remainingBalance || (data.amount - (data.totalPaid || 0))
         };
       });
-
-      setOrders(ordersData);
+            setOrders(ordersData);
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
@@ -70,6 +72,9 @@ const OrderHistory = () => {
       setIsRefreshing(false);
     }
   };
+  useEffect(() => {
+    fetchOrders();
+  }, []);
 
   const onRefresh = useCallback(() => {
     fetchOrders(true);
@@ -79,24 +84,19 @@ const OrderHistory = () => {
     fetchOrders();
   }, []);
 
-  const handlePaymentAdded = async () => {
-    try {
-      await fetchOrders();
-      setModalVisible(false);
-    } catch (error) {
-      console.error('Error refreshing orders:', error);
+const handleNavigateToOutlet = useCallback((order) => {
+  if (!order?.outletId) return;
+
+  router.push({
+    pathname: "/outlet/[id]",
+    params: {
+      id: order.outletId,
+      storeName: order.storeName,
+      propName: order.customerName,
+      phoneNumber: order.phoneNumber
     }
-  };
-
-  const openPaymentModal = (order) => {
-    setSelectedOrder(order);
-    setModalVisible(true);
-  };
-
-  const closePaymentModal = () => {
-    setModalVisible(false);
-    setSelectedOrder(null);
-  };
+  });
+}, [router]);
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -141,9 +141,10 @@ const OrderHistory = () => {
     const lastPayment = order.payments?.[order.payments.length - 1];
 
     return (
-      <View
+         <Pressable
         key={order.id}
-        className={`p-4 mb-3 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}
+        onPress={() => handleNavigateToOutlet(order)}
+        className={`p-4 mb-3 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm active:opacity-70`}
       >
         <View className="flex-row justify-between items-start mb-3">
           <View className="flex-1 pr-2">
@@ -170,8 +171,7 @@ const OrderHistory = () => {
             </View>
           </View>
         </View>
-
-        <View className={`pt-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+         <View className={`pt-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
           <View className="flex-row justify-between items-center">
             <Text className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
               Total Paid
@@ -193,30 +193,8 @@ const OrderHistory = () => {
               ₹{remainingBalance.toFixed(2)}
             </Text>
           </View>
-
-          {lastPayment && (
-            <Text className={`text-sm mt-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Last payment: ₹{lastPayment.amount.toFixed(2)} on {formatDate(lastPayment.date)}
-            </Text>
-          )}
-
-          <Pressable
-            onPress={() => openPaymentModal(order)}
-            className={`mt-3 rounded-xl px-4 py-2 ${
-              remainingBalance > 0
-                ? 'bg-blue-500'
-                : isDark ? 'bg-gray-700' : 'bg-gray-200'
-            }`}
-          >
-            <Text className={`text-center font-medium ${
-              remainingBalance > 0 || isDark ? 'text-white' : 'text-gray-800'
-            }`}>
-              {remainingBalance > 0 ? 'Add Payment' : 'View Payments'}
-            </Text>
-          </Pressable>
         </View>
-
-        {order.phoneNumber && (
+                {order.phoneNumber && (
           <View className={`flex-row justify-between items-center pt-3 mt-3 border-t ${
             isDark ? 'border-gray-700' : 'border-gray-200'
           }`}>
@@ -241,7 +219,7 @@ const OrderHistory = () => {
             </Pressable>
           </View>
         )}
-      </View>
+      </Pressable>
     );
   };
 
@@ -255,59 +233,49 @@ const OrderHistory = () => {
     dateRanges[selectedRange].end
   );
 
-  return (
-    <>
-      <ScrollView
-        className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            tintColor={isDark ? '#ffffff' : '#000000'}
-          />
-        }
-      >
-        <View className="p-4">
-          <Text className={`text-2xl font-bold mb-4 ${
-            isDark ? 'text-white' : 'text-gray-900'
-          }`}>
-            Order History
-          </Text>
+   return (
+    <ScrollView
+      className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor={isDark ? '#ffffff' : '#000000'}
+        />
+      }
+    >
+      <View className="p-4">
+        <Text className={`text-2xl font-bold mb-4 ${
+          isDark ? 'text-white' : 'text-gray-900'
+        }`}>
+          Order History
+        </Text>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
-            {Object.keys(dateRanges).map(renderDateRangeButton)}
-          </ScrollView>
-
-          <View className="mt-2">
-            {filteredOrders.length === 0 ? (
-              <View className={`p-8 rounded-xl ${
-                isDark ? 'bg-gray-800' : 'bg-white'
-              } items-center`}>
-                <MaterialIcons
-                  name="receipt-long"
-                  size={48}
-                  color={isDark ? '#4b5563' : '#9ca3af'}
-                />
-                <Text className={`mt-2 text-base ${
-                  isDark ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  No orders found for this period
-                </Text>
-              </View>
-            ) : (
-              filteredOrders.map(renderOrderCard)
-            )}
-          </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+          {Object.keys(dateRanges).map(renderDateRangeButton)}
+        </ScrollView>
+ <View className="mt-2">
+          {filteredOrders.length === 0 ? (
+            <View className={`p-8 rounded-xl ${
+              isDark ? 'bg-gray-800' : 'bg-white'
+            } items-center`}>
+              <MaterialIcons
+                name="receipt-long"
+                size={48}
+                color={isDark ? '#4b5563' : '#9ca3af'}
+              />
+              <Text className={`mt-2 text-base ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                No orders found for this period
+              </Text>
+            </View>
+          ) : (
+            filteredOrders.map(renderOrderCard)
+          )}
         </View>
-      </ScrollView>
-
-      <PaymentModal
-        visible={modalVisible}
-        onClose={closePaymentModal}
-        order={selectedOrder}
-        onPaymentAdded={handlePaymentAdded}
-      />
-    </>
+      </View>
+    </ScrollView>
   );
 };
 

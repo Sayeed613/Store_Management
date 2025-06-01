@@ -16,15 +16,15 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen
-              name="(tabs)"
+              name="outlet/[id]"
               options={{
                 headerShown: false,
+                presentation: 'card'
               }}
             />
             <Stack.Screen
-              name="outlet"
+              name="(tabs)"
               options={{
-                presentation: 'card',
                 headerShown: false,
               }}
             />

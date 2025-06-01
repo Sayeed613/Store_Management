@@ -35,11 +35,13 @@ export default function Stores() {
   const [outletOrders, setOutletOrders] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+    const [selectedOutlet, setSelectedOutlet] = useState(null);
+
 
 const fetchAllData = async (showRefresh = false) => {
   if (showRefresh) {
     setIsRefreshing(true);
-  } else {
+  } else  if (!outlets.length){
     setIsLoading(true);
   }
 
@@ -109,9 +111,9 @@ const fetchAllData = async (showRefresh = false) => {
 };
 
   useEffect(() => {
-    fetchAllData();
-    const refreshInterval = setInterval(() => fetchAllData(), 60000); // 1 minutes
-    return () => clearInterval(refreshInterval);
+    if (outlets.length === 0) {
+      fetchAllData();
+    }
   }, []);
 
   useEffect(() => {
@@ -139,9 +141,8 @@ const fetchAllData = async (showRefresh = false) => {
     });
   };
 
-  const handleCloseOrder = () => setShowOrderModal(false);
-  const handleOrderPress = () => setShowOrderModal(true);
-  const handleOrderSaved = () => fetchAllData();
+
+
 
   const renderOutlet = ({ item }) => {
     const { storeName, propName, phoneNumber, route, fullAddress, id } = item;
@@ -155,9 +156,9 @@ const fetchAllData = async (showRefresh = false) => {
       <Pressable
         onPress={() =>
           router.push({
-            pathname: '/components/outlet/OutletDetails',
+            pathname: "/outlet/[id]",
             params: {
-              outletId: id,
+              id: id,
               storeName,
               propName,
               phoneNumber,
@@ -245,40 +246,31 @@ const fetchAllData = async (showRefresh = false) => {
     ? filteredOutlets
     : filteredOutlets.slice(0, ITEMS_PER_PAGE);
 
-  return (
+    return (
     <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
-      {/* Fixed Header */}
-      <View className={`px-4 py-3 ${isDark ? 'bg-black' : 'bg-gray-100'} border-b ${
-        isDark ? 'border-gray-800' : 'border-gray-200'
-      }`}>
-        <Text className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+      {/* Header without Add Sales button */}
+      <View className={`px-4 py-3 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
+        <Text className={`text-2xl font-bold mb-4 ${
+          isDark ? 'text-white' : 'text-gray-900'
+        }`}>
           Stores
         </Text>
 
-        <View className="flex flex-row items-center gap-4 mb-2">
-          <TextInput
-            placeholder="Search stores..."
-            placeholderTextColor={isDark ? '#888' : '#aaa'}
-            value={searchText}
-            onChangeText={setSearchText}
-            className={`flex-1 border rounded-lg px-4 py-3 ${
-              isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
-            }`}
-          />
-          <Pressable
-            onPress={handleOrderPress}
-            className="flex-row items-center gap-2 bg-blue-600 rounded-lg px-4 py-3 active:bg-blue-700"
-          >
-            <Ionicons name="add" size={20} color="white" />
-            <Text className="text-white">Add Sales</Text>
-          </Pressable>
-        </View>
+        <TextInput
+          placeholder="Search stores..."
+          placeholderTextColor={isDark ? '#888' : '#999'}
+          value={searchText}
+          onChangeText={setSearchText}
+          className={`border rounded-xl px-4 py-3 ${
+            isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
+          }`}
+        />
       </View>
 
-      {/* Scrollable Content */}
+      {/* Main Content */}
       <FlatList
         className="flex-1"
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
         data={displayedOutlets}
         keyExtractor={item => item.id}
         renderItem={renderOutlet}
@@ -290,33 +282,49 @@ const fetchAllData = async (showRefresh = false) => {
           />
         }
         ListEmptyComponent={
-          <Text className={`text-center mt-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            No stores found
-          </Text>
-        }
-        ListFooterComponent={() =>
-          filteredOutlets.length > ITEMS_PER_PAGE && !showAllOutlets ? (
-            <Pressable
-              onPress={() => setShowAllOutlets(true)}
-              className={`mt-4 p-3 rounded-lg ${
-                isDark ? 'bg-gray-800' : 'bg-white'
-              } border ${isDark ? 'border-gray-700' : 'border-gray-300'}`}
-            >
-              <Text className={`text-center ${
-                isDark ? 'text-blue-400' : 'text-blue-600'
-              }`}>
-                Show More ({filteredOutlets.length - ITEMS_PER_PAGE} more)
-              </Text>
-            </Pressable>
-          ) : null
+          <View className="items-center justify-center py-8">
+            <Text className={`text-base ${
+              isDark ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              No stores found
+            </Text>
+          </View>
         }
       />
 
+      {/* Floating Action Button */}
+      <Pressable
+        onPress={() => setShowOrderModal(true)}
+        className={`absolute bottom-8 left-1/2 -ml-12 w-32 h-12
+          flex-row items-center justify-center rounded-full
+          bg-blue-600 shadow-lg active:bg-blue-700`}
+        style={{
+          transform: [{ translateX: -16 }],
+          elevation: 5,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 3.84,
+        }}
+      >
+        <Ionicons name="add" size={24} color="white" />
+        <Text className="text-white font-medium ml-1">Add Sale</Text>
+      </Pressable>
+
       <Order
         visible={showOrderModal}
-        onClose={handleCloseOrder}
-        onOrderSaved={handleOrderSaved}
+        onClose={() => {
+          setShowOrderModal(false);
+          setTimeout(() => {
+            setSelectedOutlet(null);
+          }, 300);
+        }}
+        onOrderSaved={(order) => {
+          setShowOrderModal(false);
+          fetchAllData();
+        }}
       />
     </View>
   );
+
 }
