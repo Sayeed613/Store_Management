@@ -1,246 +1,314 @@
-import { useRouter } from 'expo-router';
-import { collection, getDocs } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
-import AnalyticsOverview from '../components/analytics/AnalyticsOverview';
-import Loader from "../components/common/Loader";
-import Order from "../components/transactions/Order";
+import { MaterialIcons } from '@expo/vector-icons';
+import {
+  collection,
+  getDocs,
+  orderBy,
+  query
+} from 'firebase/firestore';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  Linking,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View
+} from 'react-native';
+import Loader from '../components/common/Loader';
+import PaymentModal from '../components/transactions/PaymentModal';
 import { useTheme } from '../context/ThemeContextProvider';
-import { fetchAnalytics } from '../services/firebase/analytics';
 import { db } from '../services/firebase/config';
+import { filterOrdersByDateRange, getDateRanges } from '../utils/dataFilter';
 
-export default function HomeScreen() {
-  const router = useRouter();
+const OrderHistory = () => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  const [analyticsData, setAnalyticsData] = useState({
-    today: { orders: 0, total: 0, cash: 0, credit: 0 },
-    currentMonth: {
-      name: '',
-      total: 0,
-      cash: 0,
-      credit: 0,
-      orders: 0
-    },
-    monthlyData: []
-  });
-
-  const [outlets, setOutlets] = useState([]);
-  const [searchText, setSearchText] = useState('');
-  const [filteredOutlets, setFilteredOutlets] = useState([]);
-  const [showOrderModal, setShowOrderModal] = useState(false);
-  const [outletOrders, setOutletOrders] = useState({});
+  const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedRange, setSelectedRange] = useState('thirtyDays');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
-  const fetchAllData = async (showRefresh = false) => {
-    if (showRefresh) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
+  const dateRanges = getDateRanges();
 
+  const fetchOrders = async (showRefresh = false) => {
     try {
-      const analytics = await fetchAnalytics();
-      setAnalyticsData(analytics.analytics);
+      if (showRefresh) setIsRefreshing(true);
+      else setIsLoading(true);
 
       const outletsRef = collection(db, 'outlets');
-      const ordersRef = collection(db, 'sales');
-
-      const [outletsSnapshot, ordersSnapshot] = await Promise.all([
-        getDocs(outletsRef),
-        getDocs(ordersRef)
-      ]);
-
-      const outletList = outletsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      const ordersByOutlet = {};
-      ordersSnapshot.docs.forEach(doc => {
-        const order = { id: doc.id, ...doc.data() };
-        if (!ordersByOutlet[order.outletId]) {
-          ordersByOutlet[order.outletId] = [];
-        }
-        ordersByOutlet[order.outletId].push(order);
+      const outletsSnap = await getDocs(outletsRef);
+      const outletPhones = {};
+      outletsSnap.docs.forEach(doc => {
+        outletPhones[doc.id] = doc.data().phoneNumber;
       });
 
-      const ordersMap = {};
-      outletList.forEach(outlet => {
-        const outletOrders = ordersByOutlet[outlet.id] || [];
-        outletOrders.sort((a, b) => {
-          const dateA = a.orderDate?.seconds || 0;
-          const dateB = b.orderDate?.seconds || 0;
-          return dateB - dateA;
-        });
+      const ordersRef = collection(db, 'sales');
+      const q = query(ordersRef, orderBy('orderDate', 'desc'));
+      const querySnapshot = await getDocs(q);
 
-        ordersMap[outlet.id] = {
-          lastOrder: outletOrders[0] || null,
-          pendingAmount: outletOrders
-            .filter(order => order.status === 'Pending')
-            .reduce((total, order) => total + (Number(order.amount) || 0), 0)
+      const ordersData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          orderDate: data.orderDate?.toDate?.() || new Date(data.orderDate?.seconds * 1000),
+          phoneNumber: outletPhones[data.outletId] || null,
+          payments: data.payments || [],
+          totalPaid: data.totalPaid || 0,
+          remainingBalance: data.remainingBalance || (data.amount - (data.totalPaid || 0))
         };
       });
 
-      setOutletOrders(ordersMap);
-      setOutlets(outletList);
-      setFilteredOutlets(outletList);
+      setOrders(ordersData);
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('Error fetching orders:', error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    fetchAllData();
-    const refreshInterval = setInterval(() => fetchAllData(), 300000); // 5 minutes
-    return () => clearInterval(refreshInterval);
+  const onRefresh = useCallback(() => {
+    fetchOrders(true);
   }, []);
 
   useEffect(() => {
-    if (!searchText.trim()) {
-      setFilteredOutlets(outlets);
-      return;
+    fetchOrders();
+  }, []);
+
+  const handlePaymentAdded = async () => {
+    try {
+      await fetchOrders();
+      setModalVisible(false);
+    } catch (error) {
+      console.error('Error refreshing orders:', error);
     }
-
-    const lowerSearchText = searchText.toLowerCase();
-    const filtered = outlets.filter(outlet =>
-      outlet.storeName?.toLowerCase().includes(lowerSearchText) ||
-      outlet.phoneNumber?.includes(lowerSearchText) ||
-      outlet.propName?.toLowerCase().includes(lowerSearchText)
-    );
-
-    setFilteredOutlets(filtered);
-  }, [searchText, outlets]);
-
-  const formatDate = (date) => {
-    if (!date) return 'No orders yet';
-    return new Date(date.seconds * 1000).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
-  const handleCloseOrder = () => setShowOrderModal(false);
-  const handleOrderPress = () => setShowOrderModal(true);
-  const handleOrderSaved = () => fetchAllData();
+  const openPaymentModal = (order) => {
+    setSelectedOrder(order);
+    setModalVisible(true);
+  };
 
-  const renderOutlet = ({ item }) => {
-    const { storeName, propName, phoneNumber, fullAddress, id } = item;
-    const orderInfo = outletOrders[id] || {};
-    const lastOrder = orderInfo.lastOrder;
-    const pendingAmount = orderInfo.pendingAmount || 0;
+  const closePaymentModal = () => {
+    setModalVisible(false);
+    setSelectedOrder(null);
+  };
 
-    return (
-      <Pressable
-        onPress={() =>
-          router.push({
-            pathname: '/components/outlet/OutletDetails',
-            params: {
-              outletId: id,
-              storeName,
-              propName,
-              phoneNumber,
-              fullAddress: fullAddress || '',
-              location: JSON.stringify(item.location),
-              lastOrderDate: lastOrder?.orderDate?.toDate?.()
-                ? lastOrder.orderDate.toDate().toISOString()
-                : lastOrder?.orderDate?.seconds
-                ? new Date(lastOrder.orderDate.seconds * 1000).toISOString()
-                : '',
-              lastOrderAmount: lastOrder?.amount || 0,
-              pendingAmount
-            }
-          })
-        }
-        className={`border rounded-lg p-4 mb-4 shadow-sm ${
-          isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
+  const formatDate = (date) => {
+    if (!date) return '';
+    try {
+      const timestamp = date?.seconds ? new Date(date.seconds * 1000) : new Date(date);
+      return timestamp.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      return '';
+    }
+  };
+
+  const renderDateRangeButton = (rangeKey) => (
+    <Pressable
+      key={rangeKey}
+      onPress={() => setSelectedRange(rangeKey)}
+      className={`px-6 py-3 rounded-full mr-2 ${
+        selectedRange === rangeKey
+          ? 'bg-blue-600'
+          : isDark ? 'bg-gray-800' : 'bg-gray-200'
+      }`}
+    >
+      <Text
+        className={`${
+          selectedRange === rangeKey
+            ? 'text-white font-bold'
+            : isDark ? 'text-gray-300' : 'text-gray-700'
         }`}
       >
-        <View className="flex-row justify-between items-start">
-          <Text className={`text-lg font-bold flex-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            {storeName}
-          </Text>
-          <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            {lastOrder ? formatDate(lastOrder.orderDate) : 'No orders'}
-          </Text>
+        {dateRanges[rangeKey].label}
+      </Text>
+    </Pressable>
+  );
+
+  const renderOrderCard = (order) => {
+    const totalPaid = order.totalPaid || 0;
+    const remainingBalance = order.remainingBalance || (order.amount - totalPaid);
+    const lastPayment = order.payments?.[order.payments.length - 1];
+
+    return (
+      <View
+        key={order.id}
+        className={`p-4 mb-3 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}
+      >
+        <View className="flex-row justify-between items-start mb-3">
+          <View className="flex-1 pr-2">
+            <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {order.storeName}
+            </Text>
+            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              {formatDate(order.orderDate)}
+            </Text>
+          </View>
+
+          <View className="items-end">
+            <Text className={`text-lg font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+              ₹{order.amount.toFixed(2)}
+            </Text>
+            <View className={`px-3 py-1 rounded-full mt-1 ${
+              order.status === 'Completed' ? 'bg-green-100' : 'bg-yellow-100'
+            }`}>
+              <Text className={`text-xs font-semibold ${
+                order.status === 'Completed' ? 'text-green-800' : 'text-yellow-800'
+              }`}>
+                {order.status}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        <View className="flex-row justify-between items-center mt-1">
-          <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            {propName}
-          </Text>
-          <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            ₹{lastOrder?.amount || 0}
-          </Text>
+        <View className={`pt-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+          <View className="flex-row justify-between items-center">
+            <Text className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              Total Paid
+            </Text>
+            <Text className={`font-semibold ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+              ₹{totalPaid.toFixed(2)}
+            </Text>
+          </View>
+
+          <View className="flex-row justify-between items-center mt-1">
+            <Text className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              Balance
+            </Text>
+            <Text className={`font-semibold ${
+              remainingBalance > 0
+                ? isDark ? 'text-red-400' : 'text-red-600'
+                : isDark ? 'text-green-400' : 'text-green-600'
+            }`}>
+              ₹{remainingBalance.toFixed(2)}
+            </Text>
+          </View>
+
+          {lastPayment && (
+            <Text className={`text-sm mt-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Last payment: ₹{lastPayment.amount.toFixed(2)} on {formatDate(lastPayment.date)}
+            </Text>
+          )}
+
+          <Pressable
+            onPress={() => openPaymentModal(order)}
+            className={`mt-3 rounded-xl px-4 py-2 ${
+              remainingBalance > 0
+                ? 'bg-blue-500'
+                : isDark ? 'bg-gray-700' : 'bg-gray-200'
+            }`}
+          >
+            <Text className={`text-center font-medium ${
+              remainingBalance > 0 || isDark ? 'text-white' : 'text-gray-800'
+            }`}>
+              {remainingBalance > 0 ? 'Add Payment' : 'View Payments'}
+            </Text>
+          </Pressable>
         </View>
 
-        <Text className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-          {phoneNumber}
-        </Text>
-      </Pressable>
+        {order.phoneNumber && (
+          <View className={`flex-row justify-between items-center pt-3 mt-3 border-t ${
+            isDark ? 'border-gray-700' : 'border-gray-200'
+          }`}>
+            <View className="flex-row items-center">
+              <MaterialIcons
+                name="phone"
+                size={18}
+                color={isDark ? '#9ca3af' : '#4b5563'}
+              />
+              <Text className={`ml-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                {order.phoneNumber}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => Linking.openURL(`tel:${order.phoneNumber}`)}
+              className={`flex-row items-center px-4 py-2 rounded-lg ${
+                isDark ? 'bg-blue-600' : 'bg-blue-500'
+              }`}
+            >
+              <MaterialIcons name="call" size={16} color="#fff" />
+              <Text className="text-white font-medium ml-2">Call Now</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
     );
   };
 
   if (isLoading) {
-    return <Loader message="Loading data..." />;
+    return <Loader message="Loading orders..." />;
   }
 
-  return (
-    <ScrollView
-      className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={() => fetchAllData(true)}
-          tintColor={isDark ? '#ffffff' : '#000000'}
-        />
-      }
-    >
-      <View className="p-4">
-        <AnalyticsOverview data={analyticsData} />
-
-        <Text className={`text-2xl font-bold my-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          Stores
-        </Text>
-
-        <View className="flex flex-row items-center gap-4 mb-4">
-          <TextInput
-            placeholder="Search stores..."
-            placeholderTextColor={isDark ? '#888' : '#aaa'}
-            value={searchText}
-            onChangeText={setSearchText}
-            className={`flex-1 border rounded-lg px-4 py-3 ${
-              isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
-            }`}
-          />
-          <Pressable
-            onPress={handleOrderPress}
-            className="bg-blue-600 rounded-lg px-4 py-2 active:bg-blue-700"
-          >
-            <Text className="text-white text-lg">New Order</Text>
-          </Pressable>
-        </View>
-
-        <FlatList
-          data={filteredOutlets}
-          keyExtractor={item => item.id}
-          renderItem={renderOutlet}
-          scrollEnabled={false}
-          ListEmptyComponent={
-            <Text className={`text-center mt-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              No stores found
-            </Text>
-          }
-        />
-      </View>
-
-      <Order visible={showOrderModal} onClose={handleCloseOrder} onOrderSaved={handleOrderSaved} />
-    </ScrollView>
+  const filteredOrders = filterOrdersByDateRange(
+    orders,
+    dateRanges[selectedRange].start,
+    dateRanges[selectedRange].end
   );
-}
+
+  return (
+    <>
+      <ScrollView
+        className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={isDark ? '#ffffff' : '#000000'}
+          />
+        }
+      >
+        <View className="p-4">
+          <Text className={`text-2xl font-bold mb-4 ${
+            isDark ? 'text-white' : 'text-gray-900'
+          }`}>
+            Order History
+          </Text>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+            {Object.keys(dateRanges).map(renderDateRangeButton)}
+          </ScrollView>
+
+          <View className="mt-2">
+            {filteredOrders.length === 0 ? (
+              <View className={`p-8 rounded-xl ${
+                isDark ? 'bg-gray-800' : 'bg-white'
+              } items-center`}>
+                <MaterialIcons
+                  name="receipt-long"
+                  size={48}
+                  color={isDark ? '#4b5563' : '#9ca3af'}
+                />
+                <Text className={`mt-2 text-base ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  No orders found for this period
+                </Text>
+              </View>
+            ) : (
+              filteredOrders.map(renderOrderCard)
+            )}
+          </View>
+        </View>
+      </ScrollView>
+
+      <PaymentModal
+        visible={modalVisible}
+        onClose={closePaymentModal}
+        order={selectedOrder}
+        onPaymentAdded={handlePaymentAdded}
+      />
+    </>
+  );
+};
+
+export default OrderHistory;

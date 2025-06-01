@@ -14,8 +14,11 @@ import {
 } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, BackHandler, KeyboardAvoidingView,
+  Alert,
+  BackHandler,
+  KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   View
 } from 'react-native';
@@ -23,9 +26,11 @@ import { LoadingButton } from '../components/common/LoadingButton';
 import { FormField } from '../components/forms/FromField';
 import { Select } from '../components/forms/Select';
 import MapPreview from '../components/maps/MapPreview';
-import { FORM_INITIAL_STATE, ROUTES } from '../constants/outlet.constants';
+import { FORM_INITIAL_STATE } from '../constants/outlet.constants';
+import { fetchRoutes } from '../constants/route';
 import { useTheme } from '../context/ThemeContextProvider';
 import { db } from '../services/firebase/config';
+
 
 const AddOutlet = () => {
   const { theme } = useTheme();
@@ -38,6 +43,24 @@ const AddOutlet = () => {
   const [locationLoading, setLocationLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [routeOptions, setRouteOptions] = useState([]);
+
+    const [refreshing, setRefreshing] = useState(false);
+
+
+  useEffect(() => {
+  const loadRoutes = async () => {
+    try {
+      const routes = await fetchRoutes();
+      setRouteOptions(routes);
+    } catch (err) {
+      console.error('Failed to load routes:', err);
+      Alert.alert('Error', 'Could not fetch route options');
+    }
+  };
+
+  loadRoutes();
+}, []);
 
 
   const handleCancel = () => {
@@ -255,6 +278,25 @@ const handleSubmit = async () => {
     setSaveLoading(false);
   }
 };
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Reset form data
+      await AsyncStorage.removeItem('outletFormData');
+      setFormData(FORM_INITIAL_STATE);
+      setLocationConfirmed(false);
+      setHasUnsavedChanges(false);
+
+      // Reset routes
+      const routes = await fetchRoutes();
+      setRouteOptions(routes);
+    } catch (error) {
+      console.error('Refresh error:', error);
+      Alert.alert('Error', 'Failed to refresh form');
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -265,6 +307,13 @@ const handleSubmit = async () => {
         <ScrollView
           contentContainerStyle={{ padding: 16 }}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={isDark ? '#ffffff' : '#000000'}
+            />
+          }
         >
           <FormField
             label="Store Name *"
@@ -305,13 +354,13 @@ const handleSubmit = async () => {
           />
 
           <Select
-            label="Route *"
-            value={formData.route}
-            options={ROUTES}
-            onChange={(value) => updateFormField('route', value)}
-            placeholder="Select route"
-            required
-          />
+  label="Route *"
+  value={formData.route}
+  options={routeOptions}
+  onChange={(value) => updateFormField('route', value)}
+  placeholder="Select route"
+  required
+/>
 
           <FormField
             label="Street"

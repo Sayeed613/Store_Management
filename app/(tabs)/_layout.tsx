@@ -36,51 +36,53 @@ export default function Layout() {
           ),
         }}
       >
-        <Tabs.Screen
-          name="index"
-          options={{
-            tabBarLabel: 'Home',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="home-outline" color={color} size={size} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="add-outlet"
-          options={{
-            tabBarLabel: 'Add Outlet',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="add-circle-outline" color={color} size={size} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="OrderHistory"
-          options={{
-            tabBarLabel: 'Order History',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="file-tray-full-outline" color={color} size={size} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="admin"
-          options={{
-            tabBarLabel: 'Admin',
-            tabBarIcon: ({ color, size }) => (
-              <FontAwesome5 name="user-shield" color={color} size={size} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="settings"
-          options={{
-            tabBarLabel: 'Settings',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="settings-outline" color={color} size={size} />
-            ),
-          }}
-        />
+       <Tabs.Screen
+  name="index"
+  options={{
+    tabBarLabel: 'History',
+    tabBarIcon: ({ color, size }) => (
+      <Ionicons name="time-outline" color={color} size={size} />
+    ),
+  }}
+/>
+<Tabs.Screen
+  name="add-outlet"
+  options={{
+    tabBarLabel: 'Add Outlet',
+    tabBarIcon: ({ color, size }) => (
+      <Ionicons name="storefront-outline" color={color} size={size} />
+    ),
+  }}
+/>
+<Tabs.Screen
+  name="Stores"
+  options={{
+    tabBarLabel: 'stores',
+    tabBarIcon: ({ color, size }) => (
+      <Ionicons name="business-outline" color={color} size={size} />
+    ),
+  }}
+/>
+
+<Tabs.Screen
+  name="admin"
+  options={{
+    tabBarLabel: 'Admin',
+    tabBarIcon: ({ color, size }) => (
+      <FontAwesome5 name="user-shield" color={color} size={size} />
+    ),
+  }}
+/>
+<Tabs.Screen
+  name="settings"
+  options={{
+    tabBarLabel: 'Settings',
+    tabBarIcon: ({ color, size }) => (
+      <Ionicons name="settings-outline" color={color} size={size} />
+    ),
+  }}
+/>
+
       </Tabs>
     </SafeAreaView>
   );

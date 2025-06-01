@@ -18,26 +18,26 @@ export const getDateRanges = () => {
   const today = getStartOfDay(now);
 
   return {
-    fiveDays: {
-      start: getStartOfDay(new Date(today.getTime() - (5 * MS_PER_DAY))),
-      end: getEndOfDay(now),
-      label: 'Last 5 Days'
-    },
-    sevenDays: {
-      start: getStartOfDay(new Date(today.getTime() - (7 * MS_PER_DAY))),
-      end: getStartOfDay(new Date(today.getTime() - (6 * MS_PER_DAY))),
-      label: '7 Days'
+    thirtyDays: {
+      start: getStartOfDay(new Date(today.getTime() - (30 * MS_PER_DAY))),
+      end: getStartOfDay(new Date(today.getTime() - (16 * MS_PER_DAY))),
+      label: '30 Days',
     },
     fifteenDays: {
       start: getStartOfDay(new Date(today.getTime() - (15 * MS_PER_DAY))),
       end: getStartOfDay(new Date(today.getTime() - (8 * MS_PER_DAY))),
-      label: '15 Days'
+      label: '15 Days',
     },
-    thirtyDays: {
-      start: getStartOfDay(new Date(today.getTime() - (30 * MS_PER_DAY))),
-      end: getStartOfDay(new Date(today.getTime() - (16 * MS_PER_DAY))),
-      label: '30 Days'
-    }
+    sevenDays: {
+      start: getStartOfDay(new Date(today.getTime() - (7 * MS_PER_DAY))),
+      end: getStartOfDay(new Date(today.getTime() - (6 * MS_PER_DAY))),
+      label: '7 Days',
+    },
+    fiveDays: {
+      start: getStartOfDay(new Date(today.getTime() - (5 * MS_PER_DAY))),
+      end: getEndOfDay(now),
+      label: 'Last 5 Days',
+    },
   };
 };
 
@@ -57,11 +57,12 @@ export const filterOrdersByDateRange = (orders, startDate, endDate) => {
 
   outletOrders.forEach((outletOrderList, outletId) => {
     outletOrderList.sort((a, b) => b.orderTime - a.orderTime);
-
     const latestOrder = outletOrderList[0];
-    const orderTime = latestOrder.orderTime;
 
-    if (orderTime >= startDate.getTime() && orderTime <= endDate.getTime()) {
+    if (
+      latestOrder.orderTime >= startDate.getTime() &&
+      latestOrder.orderTime <= endDate.getTime()
+    ) {
       filteredOrders.push(latestOrder);
     }
   });
