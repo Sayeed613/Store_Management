@@ -20,9 +20,9 @@ const LocationMap = ({ initialLocation, onLocationSelect, onCancel }) => {
       }
 
       const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-         timeout: 2000, 
-        maximumAge: 2000,
+        accuracy: Location.Accuracy.Balanced,
+         timeout: 5000,
+        maximumAge: 10000,
       });
 
       const currentLocation = {
@@ -38,7 +38,7 @@ const LocationMap = ({ initialLocation, onLocationSelect, onCancel }) => {
           latitudeDelta: 0.002,
           longitudeDelta: 0.002,
         },
-        1000
+        500
       );
     } catch (error) {
       Alert.alert('Error', 'Failed to get current location');

@@ -115,27 +115,27 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
   }, [purchaseType]);
 
   const handleSaveSale = async () => {
-    if (!selectedOutlet) {
-      Alert.alert('Error', 'Please select an outlet');
+ if (!selectedOutlet) {
+    Alert.alert('Error', 'Please select an outlet');
+    return;
+  }
+
+  if (purchaseType === 'Credit') {
+    if (!totalAmount) {
+      Alert.alert('Error', 'Please enter the total amount');
       return;
     }
-
-    if (purchaseType === 'Credit') {
-      if (!totalAmount || !paidAmount) {
-        Alert.alert('Error', 'Please enter both total amount and paid amount for credit sales');
-        return;
-      }
-    } else {
-      if (!amount) {
-        Alert.alert('Error', 'Please enter the amount');
-        return;
-      }
+  } else {
+    if (!amount) {
+      Alert.alert('Error', 'Please enter the amount');
+      return;
     }
+  }
 
     setLoading(true);
     try {
       const saleAmount = purchaseType === 'Credit' ? Number(totalAmount) : Number(amount);
-      const paid = purchaseType === 'Credit' ? Number(paidAmount) : saleAmount;
+      const paid = purchaseType === 'Credit' ? Number(paidAmount || 0) : saleAmount;
       const balance = Math.max(0, saleAmount - paid);
 
       const initialPayment = paid > 0 ? [{
@@ -253,7 +253,7 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled={true}
               showsVerticalScrollIndicator={true}
-              style={{ maxHeight: 300 }} // Match container height
+              style={{ maxHeight: 300 }}
               contentContainerStyle={{ paddingBottom: 8 }}
               renderItem={({ item }) => (
                 <Pressable

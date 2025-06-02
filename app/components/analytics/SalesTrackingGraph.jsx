@@ -23,78 +23,73 @@ const SalesTrackingGraph = ({ transactions = [] }) => {
     }
   };
 
-const processData = useMemo(() => {
-  try {
-    // Get last 6 months
-    const last6Months = new Array(6).fill(0).map((_, index) => {
-      const date = new Date();
-      date.setMonth(date.getMonth() - (5 - index));
-      return {
-        month: date.toLocaleString('default', { month: 'short' }),
-        year: date.getFullYear(),
-        totalSales: 0,
-        creditPending: 0, // Changed from creditSales to creditPending
-        timestamp: date.getTime()
-      };
-    });
+  const processData = useMemo(() => {
+    try {
+      const last6Months = new Array(6).fill(0).map((_, index) => {
+        const date = new Date();
+        date.setMonth(date.getMonth() - (5 - index));
+        return {
+          month: date.toLocaleString('default', { month: 'short' }),
+          year: date.getFullYear(),
+          totalSales: 0,
+          creditPending: 0,
+          timestamp: date.getTime()
+        };
+      });
 
-    // Process transactions
-    transactions.forEach(transaction => {
-      if (!transaction.orderDate) return;
+      transactions.forEach(transaction => {
+        if (!transaction.orderDate) return;
 
-      let transDate;
-      try {
-        if (transaction.orderDate?.toDate) {
-          transDate = transaction.orderDate.toDate();
-        } else if (transaction.orderDate?.seconds) {
-          transDate = new Date(transaction.orderDate.seconds * 1000);
-        } else {
-          transDate = new Date(transaction.orderDate);
-        }
-
-        const monthYearKey = transDate.toLocaleString('default', { month: 'short' }) + transDate.getFullYear();
-        const monthData = last6Months.find(m =>
-          (m.month + m.year) === monthYearKey
-        );
-
-        if (monthData) {
-          const amount = Number(transaction.amount) || 0;
-          monthData.totalSales += amount;
-
-          // Calculate pending credit instead of total credit amount
-          if (transaction.purchaseType === 'Credit') {
-            const totalPaid = (transaction.payments || [])
-              .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
-            const pendingAmount = amount - totalPaid;
-            monthData.creditPending += pendingAmount; // Add only pending amount
+        let transDate;
+        try {
+          if (transaction.orderDate?.toDate) {
+            transDate = transaction.orderDate.toDate();
+          } else if (transaction.orderDate?.seconds) {
+            transDate = new Date(transaction.orderDate.seconds * 1000);
+          } else {
+            transDate = new Date(transaction.orderDate);
           }
-        }
-      } catch (error) {
-        console.error('Transaction date processing error:', error, transaction);
-      }
-    });
+          const monthYearKey = transDate.toLocaleString('default', { month: 'short' }) + transDate.getFullYear();
+          const monthData = last6Months.find(m =>
+            (m.month + m.year) === monthYearKey
+          );
 
-    return {
-      labels: last6Months.map(m => m.month),
-      datasets: [
-        {
-          data: last6Months.map(m => m.totalSales),
-          color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`,
-          strokeWidth: 2
-        },
-        {
-          data: last6Months.map(m => m.creditPending), // Show pending credit
-          color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-          strokeWidth: 2
+          if (monthData) {
+            const amount = Number(transaction.amount) || 0;
+            monthData.totalSales += amount;
+
+            if (transaction.purchaseType === 'Credit') {
+              const pendingAmount = transaction.remainingBalance ??
+                (amount - (transaction.totalPaid || 0));
+              monthData.creditPending += pendingAmount;
+            }
+          }
+        } catch (error) {
+          console.error('Transaction date processing error:', error, transaction);
         }
-      ],
-      legend: ['Total Sales', 'Pending Credit'] // Updated legend
-    };
-  } catch (error) {
-    console.error('Data processing error:', error);
-    return defaultData;
-  }
-}, [transactions]);
+      });
+
+      return {
+        labels: last6Months.map(m => m.month),
+        datasets: [
+          {
+            data: last6Months.map(m => m.totalSales),
+            color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`,
+            strokeWidth: 2
+          },
+          {
+            data: last6Months.map(m => m.creditPending), // Show pending credit
+            color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
+            strokeWidth: 2
+          }
+        ],
+        legend: ['Total Sales', 'Pending Credit'] // Updated legend
+      };
+    } catch (error) {
+      console.error('Data processing error:', error);
+      return defaultData;
+    }
+  }, [transactions]);
 
 const totals = useMemo(() => {
   try {
@@ -107,6 +102,7 @@ const totals = useMemo(() => {
 
       let transDate;
       try {
+        // Parse the transaction date
         if (transaction.orderDate?.toDate) {
           transDate = transaction.orderDate.toDate();
         } else if (transaction.orderDate?.seconds) {
@@ -115,21 +111,21 @@ const totals = useMemo(() => {
           transDate = new Date(transaction.orderDate);
         }
 
+        // Check if transaction is from current month
         if (transDate.getMonth() === currentMonth &&
             transDate.getFullYear() === currentYear) {
           const amount = Number(transaction.amount) || 0;
           acc.monthTotal += amount;
 
-          // Calculate pending credit
+          // Calculate credit amount
           if (transaction.purchaseType === 'Credit') {
-            const totalPaid = (transaction.payments || [])
-              .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
-            const pendingAmount = amount - totalPaid;
-            acc.monthCredit += pendingAmount; // Add only pending amount
+            const pendingAmount = transaction.remainingBalance ??
+              (amount - (Number(transaction.totalPaid) || 0));
+            acc.monthCredit += pendingAmount;
           }
         }
       } catch (error) {
-        console.error('Transaction processing error:', error, transaction);
+        console.error('Transaction date processing error:', error);
       }
       return acc;
     }, { monthTotal: 0, monthCredit: 0 });
@@ -153,13 +149,13 @@ const totals = useMemo(() => {
         <View className="flex-1 mr-2 p-3 rounded-xl bg-green-100">
           <Text className="text-xs text-green-800">Monthly Sales</Text>
           <Text className="text-sm font-bold text-green-800">
-            ₹{totals.monthTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+            ₹{totals.monthTotal.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2  })}
           </Text>
         </View>
         <View className="flex-1 ml-2 p-3 rounded-xl bg-red-100">
           <Text className="text-xs text-red-800">Credit Sales</Text>
           <Text className="text-sm font-bold text-red-800">
-            ₹{totals.monthCredit.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+            ₹{totals.monthCredit.toLocaleString('en-IN', { maximumFractionDigits: 2,  minimumFractionDigits: 2  })}
           </Text>
         </View>
       </View>

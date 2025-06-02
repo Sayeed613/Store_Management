@@ -143,6 +143,35 @@ export default function OutletDetail() {
     fetchData();
   }, [params.id]);
 
+
+  useEffect(() => {
+  if (params.updatedLocation) {
+    try {
+      const locationUpdate = JSON.parse(params.updatedLocation);
+      if (locationUpdate?.latitude && locationUpdate?.longitude) {
+        setLocationData(locationUpdate);
+
+        // Update Firestore
+        const updateOutletLocation = async () => {
+          try {
+            await updateDoc(doc(db, 'outlets', params.id), {
+              location: locationUpdate,
+              updatedAt: serverTimestamp(),
+            });
+          } catch (error) {
+            console.error('Failed to update outlet location:', error);
+            Alert.alert('Error', 'Failed to update location');
+          }
+        };
+
+        updateOutletLocation();
+      }
+    } catch (error) {
+      console.error('Failed to parse location:', error);
+    }
+  }
+}, [params.updatedLocation, params.id]);
+
   useEffect(() => {
     if (params.location) {
       try {
@@ -257,24 +286,22 @@ export default function OutletDetail() {
     }
   }, [locationData]);
 
-  const updateLocation = useCallback(() => {
-    router.push({
-      pathname: '../../screens/MapScreen',
-      params: {
-        outletId: params.outletId,
-        ...(locationData && {
-          existingLat: locationData.latitude,
-          existingLng: locationData.longitude,
-        }),
-      },
-    });
-  }, [locationData, params.outletId]);
+const updateLocation = useCallback(() => {
+  router.push({
+    pathname: '/screens/MapScreen',
+    params: {
+      outletId: params.id,
+      returnTo: 'outletDetails',
+      isEditing: true,
+      existingLat: locationData?.latitude,
+      existingLng: locationData?.longitude,
+    },
+  });
+}, [locationData, params.id]);
 
   const handleBackPress = useCallback(() => {
     router.back();
   }, []);
-
-
 
   const renderStoreDetails = () => {
     return isEditing ? (

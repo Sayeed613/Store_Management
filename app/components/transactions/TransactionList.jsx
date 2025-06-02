@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { formatCurrency } from '../../utils/currencyAndTime';
@@ -60,25 +60,26 @@ const DateDivider = ({ date, isDark }) => (
   </View>
 );
 
-
-
+const showDeleteAlert = (onDelete, transactionId) => {
+  Alert.alert(
+    'Delete Transaction',
+    'Are you sure you want to delete this transaction?',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        onPress: () => onDelete?.(transactionId),
+        style: 'destructive'
+      }
+    ]
+  );
+};
 const TransactionItem = ({ transaction, isDark, onDelete, onPressPayment, index }) => {
     const renderRightActions = () => (
     <Pressable
-      onPress={() => {
-        Alert.alert(
-          'Delete Transaction',
-          'Are you sure you want to delete this transaction?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Delete',
-              onPress: () => onDelete?.(transaction.id),
-              style: 'destructive'
-            }
-          ]
-        );
-      }}
+      onPress={() =>
+      showDeleteAlert(onDelete, transaction.id)
+      }
       className="bg-red-500 justify-center items-center w-16"
     >
       <MaterialIcons name="delete" size={24} color="white" />
