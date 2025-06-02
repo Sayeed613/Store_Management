@@ -65,7 +65,7 @@ A comprehensive mobile application for managing stores, sales tracking, and paym
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone <https://github.com/Sayeed613/Store_Management.git>
 
 # Install dependencies
 npm install
@@ -168,7 +168,7 @@ app/
 MIT License
 
 ## Support
-For support, email [your-email@example.com]
+For support, email [Sayeedahmed90082@gmail.com]
 
 
 
