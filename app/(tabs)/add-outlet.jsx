@@ -301,8 +301,8 @@ const AddOutlet = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1"
     >
-      <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
-        <ScrollView
+ <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
+    <ScrollView
           contentContainerStyle={{ padding: 16 }}
           keyboardShouldPersistTaps="handled"
           refreshControl={
@@ -321,8 +321,8 @@ const AddOutlet = () => {
             required
           />
 
-          <View className="flex-row gap-2 mb-2">
-            <View className="flex-1">
+          <View className={`flex-row gap-2 mb-2`}>
+            <View className={`flex-1  `}>
               <FormField
                 label="First Name *"
                 value={formData.firstName}

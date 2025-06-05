@@ -1,4 +1,4 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
   collection,
@@ -16,6 +16,7 @@ import {
   View
 } from 'react-native';
 import Loader from '../components/common/Loader';
+import Order from '../components/transactions/Order';
 import { useTheme } from '../context/ThemeContextProvider';
 import { db } from '../services/firebase/config';
 import { filterOrdersByDateRange, getDateRanges } from '../utils/dataFilter';
@@ -30,6 +31,8 @@ const OrderHistory = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedRange, setSelectedRange] = useState('thirtyDays');
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+
 
   const dateRanges = getDateRanges();
 
@@ -80,9 +83,6 @@ const OrderHistory = () => {
     fetchOrders(true);
   }, []);
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
 
 const handleNavigateToOutlet = useCallback((order) => {
   if (!order?.outletId) return;
@@ -141,60 +141,51 @@ const handleNavigateToOutlet = useCallback((order) => {
     const lastPayment = order.payments?.[order.payments.length - 1];
 
     return (
-         <Pressable
+    <Pressable
         key={order.id}
         onPress={() => handleNavigateToOutlet(order)}
-        className={`p-4 mb-3 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm active:opacity-70`}
+        className={`p-4 mb-3 rounded-xl  ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm active:opacity-70`}
       >
-        <View className="flex-row justify-between items-start mb-3">
-          <View className="flex-1 pr-2">
-            <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        <View className='flex flex-row justify-between items-center mb-2'>
+            <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-600'}`}>
               {order.storeName}
             </Text>
-            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            <View className='flex flex-row justify-between items-center mt-1'>
+
+             <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               {formatDate(order.orderDate)}
             </Text>
-          </View>
-
-          <View className="items-end">
-            <Text className={`text-lg font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>
-              ₹{order.amount.toFixed(2)}
+        </View>
+        </View>
+        <View className='flex flex-row gap-5 mt-2 '>
+            <View className='flex flex-col gap-1'>
+              <Text className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              Total
             </Text>
-            <View className={`px-3 py-1 rounded-full mt-1 ${
-              order.status === 'Completed' ? 'bg-green-100' : 'bg-yellow-100'
-            }`}>
-              <Text className={`text-xs font-semibold ${
+              <Text className={`font-semibold ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
+              ₹{totalPaid.toFixed(2)}
+            </Text>
+            </View>
+
+            <View className='flex flex-col gap-1'>
+                 <Text className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              Balance
+            </Text>
+            <Text className={`font-semibold ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
+              ₹{remainingBalance.toFixed(2)}
+            </Text>
+            </View>
+           <View className='flex-1 items-end'>
+             <View className={`px-1 py-1  rounded-full mt-1 `}>
+              <Text className={` text-xs font-semibold ${
                 order.status === 'Completed' ? 'text-green-800' : 'text-yellow-800'
               }`}>
                 {order.status}
               </Text>
             </View>
-          </View>
-        </View>
-         <View className={`pt-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-          <View className="flex-row justify-between items-center">
-            <Text className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              Total Paid
-            </Text>
-            <Text className={`font-semibold ${isDark ? 'text-green-400' : 'text-green-600'}`}>
-              ₹{totalPaid.toFixed(2)}
-            </Text>
-          </View>
-
-          <View className="flex-row justify-between items-center mt-1">
-            <Text className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              Balance
-            </Text>
-            <Text className={`font-semibold ${
-              remainingBalance > 0
-                ? isDark ? 'text-red-400' : 'text-red-600'
-                : isDark ? 'text-green-400' : 'text-green-600'
-            }`}>
-              ₹{remainingBalance.toFixed(2)}
-            </Text>
-          </View>
-        </View>
-                {order.phoneNumber && (
+            </View>
+           </View>
+              {order.phoneNumber && (
           <View className={`flex-row justify-between items-center pt-3 mt-3 border-t ${
             isDark ? 'border-gray-700' : 'border-gray-200'
           }`}>
@@ -207,10 +198,12 @@ const handleNavigateToOutlet = useCallback((order) => {
               <Text className={`ml-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                 {order.phoneNumber}
               </Text>
+
+
             </View>
             <Pressable
               onPress={() => Linking.openURL(`tel:${order.phoneNumber}`)}
-              className={`flex-row items-center px-4 py-2 rounded-lg ${
+              className={`flex-row items-center px-1 py-2 rounded-lg ${
                 isDark ? 'bg-blue-600' : 'bg-blue-500'
               }`}
             >
@@ -219,6 +212,7 @@ const handleNavigateToOutlet = useCallback((order) => {
             </Pressable>
           </View>
         )}
+
       </Pressable>
     );
   };
@@ -234,6 +228,7 @@ const handleNavigateToOutlet = useCallback((order) => {
   );
 
    return (
+    <>
     <ScrollView
       className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}
       refreshControl={
@@ -254,9 +249,9 @@ const handleNavigateToOutlet = useCallback((order) => {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
           {Object.keys(dateRanges).map(renderDateRangeButton)}
         </ScrollView>
- <View className="mt-2">
+            <View className="mt-2 ">
           {filteredOrders.length === 0 ? (
-            <View className={`p-8 rounded-xl ${
+            <View className={`p-8  rounded-xl ${
               isDark ? 'bg-gray-800' : 'bg-white'
             } items-center`}>
               <MaterialIcons
@@ -275,7 +270,38 @@ const handleNavigateToOutlet = useCallback((order) => {
           )}
         </View>
       </View>
+
     </ScrollView>
+           <Pressable
+        onPress={() => setShowOrderModal(true)}
+        className={`absolute bottom-8 left-1/2 -ml-12 w-32 h-12
+          flex-row items-center justify-center rounded-full
+          bg-blue-600 shadow-lg active:bg-blue-700`}
+        style={{
+          transform: [{ translateX: -16 }],
+          elevation: 5,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 3.84,
+        }}
+      >
+        <Ionicons name="add" size={24} color="white" />
+        <Text className="text-white font-medium ml-1">Add Sale</Text>
+      </Pressable>
+
+      <Order
+        visible={showOrderModal}
+        onClose={() => {
+          setShowOrderModal(false);
+        }}
+        onOrderSaved={(order) => {
+          setShowOrderModal(false);
+          fetchOrders();
+        }}
+      />
+    </>
+
   );
 };
 

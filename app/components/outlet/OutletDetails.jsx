@@ -1,21 +1,21 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
+  limit,
   orderBy,
   query,
   serverTimestamp,
   updateDoc,
   where
 } from 'firebase/firestore';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
+  Animated,
   Linking,
   Pressable,
   ScrollView,
@@ -23,6 +23,7 @@ import {
   TextInput,
   View
 } from 'react-native';
+import Modal from 'react-native-modal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ROUTES } from '../../constants/outlet.constants';
 import { useTheme } from '../../context/ThemeContextProvider';
@@ -32,20 +33,18 @@ import { Select } from '../forms/Select';
 import TransactionList from '../transactions/TransactionList';
 
 
-const INITIAL_TRANSACTION_LIMIT = 5;
-
 export default function OutletDetail() {
   const params = useLocalSearchParams();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+
+  // States with memoization
   const [locationData, setLocationData] = useState(null);
   const [outletData, setOutletData] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [monthlySales, setMonthlySales] = useState(0);
-  const [showAllTransactions, setShowAllTransactions] = useState(false);
-
+  const [showGraphModal, setShowGraphModal] = useState(false);
   const [editedData, setEditedData] = useState({
     storeName: '',
     propName: '',
@@ -54,447 +53,474 @@ export default function OutletDetail() {
     street: '',
     locality: '',
     landmark: '',
-    pincode: '',
   });
 
+  // Memoize animation value
+  const scrollY = useMemo(() => new Animated.Value(0), []);
+  const bottomButtonsStyle = useMemo(() => ({
+    opacity: scrollY.interpolate({
+      inputRange: [0, 50],
+      outputRange: [1, 0],
+      extrapolate: 'clamp'
+    }),
+    transform: [{
+      translateY: scrollY.interpolate({
+        inputRange: [0, 100],
+        outputRange: [0, 50],
+        extrapolate: 'clamp'
+      })
+    }]
+  }), [scrollY]);
 
-  const calculateMonthlySales = useCallback((sales) => {
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth();
-    const currentYear = currentDate.getFullYear();
+  // Optimized data fetching
+  const fetchData = useCallback(async () => {
+    if (!params.id) return;
 
-    return sales.reduce((total, transaction) => {
-      const transDate = transaction.orderDate;
-      if (
-        transDate &&
-        transDate.getMonth() === currentMonth &&
-        transDate.getFullYear() === currentYear
-      ) {
-        return total + (transaction.amount || 0);
-      }
-      return total;
-    }, 0);
-  }, []);
+    try {
+      setLoading(true);
+      const outletRef = doc(db, 'outlets', params.id);
+      const salesRef = collection(db, 'sales');
 
-
-  useEffect(() => {
-    const fetchTransactions = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'sales'));
-        const data = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          orderDate: doc.data().orderDate?.toDate()
-        }));
-        setTransactions(data);
-      } catch (error) {
-        console.error('Error fetching transactions:', error);
-      }
-    };
-
-    fetchTransactions();
-  }, []);
-
-   useEffect(() => {
-    const fetchData = async () => {
-      if (!params.id) return;
-
-      try {
-        setLoading(true);
-        const outletRef = doc(db, 'outlets', params.id);
-        const outletSnap = await getDoc(outletRef);
-
-        if (outletSnap.exists()) {
-          const data = { id: outletSnap.id, ...outletSnap.data() };
-          setOutletData(data);
-          setEditedData({
-            storeName: data.storeName || params.storeName || '',
-            propName: data.propName || params.propName || '',
-            phoneNumber: data.phoneNumber || params.phoneNumber || '',
-            route: data.route || '',
-            street: data.street || '',
-            locality: data.locality || '',
-            landmark: data.landmark || '',
-            pincode: data.pincode || '',
-          });
-        }
-              const q = query(
-          collection(db, 'sales'),
+      const [outletSnap, transactionSnap] = await Promise.all([
+        getDoc(outletRef),
+        getDocs(query(
+          salesRef,
           where('outletId', '==', params.id),
-          orderBy('orderDate', 'desc')
-        );
+          orderBy('orderDate', 'desc'),
+          limit(10)
+        ))
+      ]);
 
-        const transactionSnap = await getDocs(q);
-        const sales = transactionSnap.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          orderDate: doc.data().orderDate?.toDate() || new Date(doc.data().orderDate)
-        }));
-
-        setTransactions(sales);
-      } catch (error) {
-        console.error('Failed to fetch data:', error);
-        Alert.alert('Error', 'Failed to load outlet details');
-      } finally {
-        setLoading(false);
+      if (outletSnap.exists()) {
+        const data = { id: outletSnap.id, ...outletSnap.data() };
+        setOutletData(data);
+        setEditedData({
+          storeName: data.storeName || '',
+          propName: data.propName || '',
+          phoneNumber: data.phoneNumber || '',
+          route: data.route || '',
+          street: data.street || '',
+          locality: data.locality || '',
+          landmark: data.landmark || '',
+        });
+        setLocationData(data.location || null);
       }
-    };
 
-    fetchData();
+      const sales = transactionSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        orderDate: doc.data().orderDate?.toDate() || new Date(doc.data().orderDate)
+      }));
+      setTransactions(sales);
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+      Alert.alert('Error', 'Failed to load outlet details');
+    } finally {
+      setLoading(false);
+    }
   }, [params.id]);
 
-
+  // Load data on mount and params change
   useEffect(() => {
-  if (params.updatedLocation) {
+    fetchData();
+  }, [fetchData]);
+
+  // Optimized save changes handler
+  const handleSaveChanges = useCallback(async () => {
+    if (!editedData.storeName.trim()) {
+      Alert.alert('Error', 'Store name is required');
+      return;
+    }
+
     try {
-      const locationUpdate = JSON.parse(params.updatedLocation);
-      if (locationUpdate?.latitude && locationUpdate?.longitude) {
-        setLocationData(locationUpdate);
+      await updateDoc(doc(db, 'outlets', params.id), {
+        ...editedData,
+        updatedAt: serverTimestamp(),
+      });
 
-        // Update Firestore
-        const updateOutletLocation = async () => {
-          try {
-            await updateDoc(doc(db, 'outlets', params.id), {
-              location: locationUpdate,
-              updatedAt: serverTimestamp(),
-            });
-          } catch (error) {
-            console.error('Failed to update outlet location:', error);
-            Alert.alert('Error', 'Failed to update location');
-          }
-        };
-
-        updateOutletLocation();
-      }
+      setOutletData(prev => ({
+        ...prev,
+        ...editedData,
+      }));
+      setIsEditing(false);
+      Alert.alert('Success', 'Details updated successfully');
     } catch (error) {
-      console.error('Failed to parse location:', error);
+      console.error('Update failed:', error);
+      Alert.alert('Error', 'Failed to update details');
     }
-  }
-}, [params.updatedLocation, params.id]);
+  }, [editedData, params.id]);
 
-  useEffect(() => {
-    if (params.location) {
-      try {
-        const parsed = typeof params.location === 'string'
-          ? JSON.parse(params.location)
-          : params.location;
-
-        if (parsed?.latitude && parsed?.longitude) {
-          setLocationData({
-            latitude: parseFloat(parsed.latitude),
-            longitude: parseFloat(parsed.longitude),
-            address: parsed.address,
-          });
-        }
-      } catch (error) {
-        console.error('Failed to parse location:', error);
-      }
-    }
-  }, [params.location]);
-
-  const getDisplayedTransactions = useCallback(() => {
-    return showAllTransactions
-      ? transactions
-      : transactions.slice(0, INITIAL_TRANSACTION_LIMIT);
-  }, [transactions, showAllTransactions]);
-
-  const handleDeleteTransaction = useCallback(async (transactionId) => {
-    try {
-      await deleteDoc(doc(db, 'sales', transactionId));
-      setTransactions(prev => prev.filter(t => t.id !== transactionId));
-      Alert.alert('Success', 'Transaction deleted successfully');
-    } catch (error) {
-      console.error('Error deleting transaction:', error);
-      Alert.alert('Error', 'Failed to delete transaction');
-    }
-  }, []);
-
+  // Memoized handlers
   const handleCall = useCallback(() => {
-    const phone = params.phoneNumber || outletData?.phoneNumber;
+    const phone = outletData?.phoneNumber;
     if (phone) {
-      Linking.openURL(`tel:${phone}`).catch((err) => {
-        console.error('Failed to make call:', err);
+      Linking.openURL(`tel:${phone}`).catch(() => {
         Alert.alert('Error', 'Could not open phone application');
       });
     }
-  }, [params.phoneNumber, outletData]);
-
-  const handleSaveChanges = useCallback(async () => {
-    Alert.alert('Save Changes', 'Are you sure you want to save these changes?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Save',
-        onPress: async () => {
-          try {
-            const outletRef = doc(db, 'outlets', params.outletId);
-            await updateDoc(outletRef, {
-              ...editedData,
-              updatedAt: serverTimestamp(),
-            });
-
-            setOutletData((prev) => ({
-              ...prev,
-              ...editedData,
-            }));
-
-            setIsEditing(false);
-            Alert.alert('Success', 'Outlet details updated successfully');
-          } catch (error) {
-            console.error('Failed to update outlet:', error);
-            Alert.alert('Error', 'Failed to update outlet details');
-          }
-        },
-      },
-    ]);
-  }, [editedData, params.outletId]);
-
-  const handleCancelEdit = () => {
-    setEditedData({
-      storeName: outletData?.storeName || '',
-      propName: outletData?.propName || '',
-      phoneNumber: outletData?.phoneNumber || '',
-      route: outletData?.route || '',
-      street: outletData?.street || '',
-      locality: outletData?.locality || '',
-      landmark: outletData?.landmark || '',
-      pincode: outletData?.pincode || '',
-    });
-    setIsEditing(false);
-  };
-
-  const formatAddress = useCallback(() => {
-    const addressParts = [
-      editedData.street || params.street || outletData?.street,
-      editedData.route || params.route || outletData?.route,
-      editedData.locality || params.locality || outletData?.locality,
-      editedData.landmark || params.landmark || outletData?.landmark,
-      editedData.pincode || params.pincode || outletData?.pincode,
-    ].filter(Boolean);
-
-    return addressParts.length > 0
-      ? addressParts.join(', ')
-      : 'Address not available';
-  }, [params, outletData, editedData]);
+  }, [outletData]);
 
   const openInMaps = useCallback(() => {
     if (locationData?.latitude && locationData?.longitude) {
       const url = `https://www.google.com/maps/dir/?api=1&destination=${locationData.latitude},${locationData.longitude}`;
-      Linking.openURL(url).catch((err) => {
-        console.error('Failed to open maps:', err);
+      Linking.openURL(url).catch(() => {
         Alert.alert('Error', 'Could not open maps application');
       });
     }
   }, [locationData]);
 
-const updateLocation = useCallback(() => {
-  router.push({
-    pathname: '/screens/MapScreen',
-    params: {
-      outletId: params.id,
-      returnTo: 'outletDetails',
-      isEditing: true,
-      existingLat: locationData?.latitude,
-      existingLng: locationData?.longitude,
-    },
-  });
-}, [locationData, params.id]);
+  const handleUpdateLocation = useCallback(() => {
+    router.push({
+      pathname: '/screens/MapScreen',
+      params: {
+        outletId: params.id,
+        returnTo: 'outletDetails',
+        isEditing: true,
+        existingLat: locationData?.latitude,
+        existingLng: locationData?.longitude,
+      },
+    });
+  }, [params.id, locationData]);
 
-  const handleBackPress = useCallback(() => {
-    router.back();
-  }, []);
 
-  const renderStoreDetails = () => {
-    return isEditing ? (
-      <View className="flex flex-col gap-4 space-y-4">
-        {["storeName", "propName", "phoneNumber"].map((field, i) => (
-          <TextInput
-            key={i}
-            value={editedData[field]}
-            onChangeText={(text) =>
-              setEditedData((prev) => ({ ...prev, [field]: text }))
-            }
-            placeholder={
-              field === 'propName'
-                ? 'Owner Name'
-                : field === 'storeName'
-                  ? 'Store Name'
-                  : 'Phone Number'
-            }
-            keyboardType={field === 'phoneNumber' ? 'phone-pad' : 'default'}
-            className={`px-4 py-3 rounded-xl border focus:border-blue-500 ${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-300 text-black'
-              }`}
-            placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
-          />
-        ))}
-
-        <Select
-          label="Route"
-          value={editedData.route}
-          options={ROUTES}
-          onChange={(value) =>
-            setEditedData((prev) => ({ ...prev, route: value }))
-          }
-          placeholder="Select Route"
-          required
-        />
-
-        <View className="flex-row justify-between gap-4 mt-1 space-x-1">
-          <Pressable
-            onPress={handleSaveChanges}
-            className="flex-1 bg-emerald-600 p-4 rounded-xl shadow-md"
-          >
-            <Text className="text-white text-center font-semibold">Save</Text>
-          </Pressable>
-          <Pressable
-            onPress={updateLocation}
-            className="flex-1 bg-blue-500 p-4 rounded-xl shadow-md"
-          >
-            <Text className="text-white text-center font-semibold">
-              Update Location
+const renderGraphModal = () => (
+  <Modal
+    visible={showGraphModal}
+    animationType="fade"
+    transparent
+  >
+    <View className="flex-1 justify-center items-center ">
+      <View
+        className={`w-[90%] rounded-2xl ${isDark ? 'bg-gray-900' : 'bg-white'} shadow-xl`}
+        style={{ maxHeight: '80%' }}
+      >
+        {/* Header */}
+        <View className={`flex-row justify-between items-center p-4 border-b ${
+          isDark ? 'border-gray-700' : 'border-gray-200'
+        }`}>
+          <View>
+            <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Sales Analytics
             </Text>
+
+          </View>
+          <Pressable
+            onPress={() => setShowGraphModal(false)}
+            className={`rounded-full p-2 ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}
+          >
+            <MaterialIcons
+              name="close"
+              size={20}
+              color={isDark ? 'white' : 'black'}
+            />
           </Pressable>
         </View>
 
-        <Pressable
-          onPress={handleCancelEdit}
-          className="mt-3 bg-red-600 p-4 rounded-xl shadow-md"
-        >
-          <Text className="text-white text-center font-semibold">Cancel</Text>
-        </Pressable>
+        {/* Graph Content */}
+        <ScrollView className="p-4">
+          <SalesTrackingGraph transactions={transactions} />
+        </ScrollView>
       </View>
-    ) : (
-      renderNonEditableDetails()
+    </View>
+  </Modal>
+);
+  const renderHeader = () => (
+    <View className={`flex-row items-center px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'
+      }`}>
+      <Pressable
+        onPress={() => router.back()}
+        className="mr-4 p-2 active:opacity-70"
+      >
+        <Ionicons
+          name="arrow-back"
+          size={24}
+          color={isDark ? '#fff' : '#000'}
+        />
+      </Pressable>
+      <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'
+        }`}>
+        {isEditing ? 'Edit Store' : 'Store Details'}
+      </Text>
+    </View>
+  );
+
+  const renderEditableField = (label, value, onChangeText, options = {}) => {
+    const { keyboardType = 'default', multiline = false } = options;
+
+    return (
+      <View className="mb-4">
+        <Text className={`text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+          {label}
+        </Text>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType={keyboardType}
+          multiline={multiline}
+          numberOfLines={multiline ? 3 : 1}
+          className={`px-4 py-3 rounded-xl border ${isDark
+            ? 'bg-gray-800 border-gray-700 text-white'
+            : 'bg-white border-gray-200 text-gray-900'
+            }`}
+          placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
+        />
+      </View>
     );
   };
 
-  const renderNonEditableDetails = () => (
-    <View className="space-y-4">
-      <View className="flex-row justify-between items-center mb-2">
-        <Text
-          className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}
-        >
-          {outletData?.storeName || 'Unnamed Store'}
+const renderStoreInfo = () => {
+  const totals = useMemo(() => {
+    return transactions.reduce((acc, transaction) => {
+      const amount = Number(transaction.amount) || 0;
+      const totalPaid = transaction.payments?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) || 0;
+      const remaining = amount - totalPaid;
+
+      return {
+        totalSales: acc.totalSales + amount,
+        totalBalance: acc.totalBalance + (remaining > 0 ? remaining : 0)
+      };
+    }, { totalSales: 0, totalBalance: 0 });
+  }, [transactions]);
+
+  return (
+    <View className="p-4">
+      {/* Store Name and Edit */}
+      <View className="flex-row justify-between items-center mb-4">
+        <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          {outletData?.storeName}
         </Text>
         <Pressable
           onPress={() => setIsEditing(true)}
-          className="p-2 rounded-full bg-blue-100 dark:bg-gray-700"
+          className={`p-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
         >
-          <Ionicons name="pencil" size={20} color={isDark ? '#fff' : '#1e3a8a'} />
+          <MaterialIcons name="edit" size={20} color={isDark ? '#fff' : '#374151'} />
         </Pressable>
       </View>
 
-      <View
-        className={`rounded-xl flex flex-col gap-2 ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}
-      >
-        <Text className={`${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
-          Owner: <Text className="font-medium">{outletData?.propName || 'N/A'}</Text>
-        </Text>
-        <Text className={`${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
-          Phone: <Text className="font-medium">{outletData?.phoneNumber || 'N/A'}</Text>
-        </Text>
-        <Text className={`${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
-          Route: <Text className="font-medium">{ROUTES.find((r) => r.value === outletData?.route)?.label || 'N/A'}</Text>
-        </Text>
-        <Text className={`${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
-          Address: <Text className="font-medium">{formatAddress()}</Text>
-        </Text>
-      </View>
+      {/* Store Details Container */}
+      <View className="space-y-4">
+        {/* Owner and Route Info */}
+        <View className="flex-row justify-between">
+          <View className="flex-1">
+            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Owner</Text>
+            <Text className={`text-base font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {outletData?.propName}
+            </Text>
+          </View>
+          <View className="flex-1">
+            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Route</Text>
+            <Text className={`text-base font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {ROUTES.find(r => r.value === outletData?.route)?.label}
+            </Text>
+          </View>
+        </View>
 
-      <View className="flex-row gap-4 space-x-3 mt-4">
-        <Pressable
-          onPress={handleCall}
-          className="flex-1 bg-green-600 py-4 rounded-xl shadow-md"
-        >
-          <Text className="text-white text-center font-medium">Call</Text>
-        </Pressable>
-        <Pressable
-          onPress={openInMaps}
-          className="flex-1 bg-blue-600 py-4 rounded-xl shadow-md"
-        >
-          <Text className="text-white text-center font-medium">Directions</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
+        {/* Address and Phone */}
+        <View className="flex-row justify-between">
+          <View className="flex-1">
+            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Address</Text>
+            <Pressable
+              onPress={openInMaps}
+              className="flex-row items-center"
+            >
+              <Text className={`text-base ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {[
+                  outletData?.street,
+                  outletData?.locality,
+                  outletData?.landmark,
+                ].filter(Boolean).join(', ')}
+              </Text>
+              <MaterialIcons
+                name="directions"
+                size={20}
+                color={isDark ? '#60a5fa' : '#2563eb'}
+                style={{ marginLeft: 8 }}
+              />
+            </Pressable>
+          </View>
 
-  const renderTransactions = () => (
-    <View>
-      <TransactionList
-        transactions={getDisplayedTransactions()}
-        isDark={isDark}
-        onDeleteTransaction={handleDeleteTransaction}
-      />
+          <View className="flex-1">
+            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Phone</Text>
+            <Pressable
+              onPress={handleCall}
+              className="flex-row items-center"
+            >
+              <Text className={`text-base ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {outletData?.phoneNumber}
+              </Text>
+              <MaterialIcons
+                name="phone"
+                size={20}
+                color={isDark ? '#4ade80' : '#16a34a'}
+                style={{ marginLeft: 8 }}
+              />
+            </Pressable>
+          </View>
+        </View>
 
-      {transactions.length > INITIAL_TRANSACTION_LIMIT && (
-        <Pressable
-          onPress={() => {
-            // Simply toggle the state without triggering a reload
-            setShowAllTransactions(prev => !prev);
-          }}
-          className={`mt-4 p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'
-            } border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
-        >
-          <Text
-            className={`text-center ${isDark ? 'text-blue-400' : 'text-blue-600'
-              }`}
+        {/* Sales and Balance Cards */}
+        <View className="flex-row mt-2 justify-between">
+          <View className="flex-1 mr-2 p-3 rounded-xl bg-green-100">
+            <Text className="text-xs text-green-800">Total Sales</Text>
+            <Text className="text-sm font-bold text-green-800">
+              ₹{totals.totalSales.toLocaleString('en-IN', {
+                maximumFractionDigits: 2,
+                minimumFractionDigits: 2
+              })}
+            </Text>
+          </View>
+          <View className="flex-1 ml-2 p-3 rounded-xl bg-red-100">
+            <Text className="text-xs text-red-800">Balance Due</Text>
+            <Text className="text-sm font-bold text-red-800">
+              ₹{totals.totalBalance.toLocaleString('en-IN', {
+                maximumFractionDigits: 2,
+                minimumFractionDigits: 2
+              })}
+            </Text>
+          </View>
+        </View>
+
+        {/* View Sales Analytics Button */}
+        <View className="pt-4 ">
+          <Pressable
+            onPress={() => setShowGraphModal(true)}
+            className={`flex-row items-center justify-center p-3 rounded-xl ${
+              isDark ? 'bg-gray-700' : 'bg-blue-50'
+            }`}
           >
-            {showAllTransactions
-              ? 'Show Less'
-              : `Show More (${transactions.length - INITIAL_TRANSACTION_LIMIT} more)`
-            }
-          </Text>
-        </Pressable>
-      )}
+            <MaterialIcons
+              name="analytics"
+              size={20}
+              color={isDark ? '#60a5fa' : '#2563eb'}
+              style={{ marginRight: 8 }}
+            />
+            <Text className={`font-medium ${
+              isDark ? 'text-blue-400' : 'text-blue-600'
+            }`}>
+              View Sales Analytics
+            </Text>
+          </Pressable>
+        </View>
+      </View>
     </View>
   );
+};
 
-  if (loading) {
-    return (
-      <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
-        <View
-          className={`flex-row items-center px-4 py-3 border-b ${
-            isDark ? 'border-gray-700' : 'border-gray-200'
-          }`}
-        >
-          <Pressable onPress={() => router.back()} className="mr-4 p-2">
-            <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
-          </Pressable>
-          <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Loading Details...
-          </Text>
-        </View>
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-        </View>
-      </SafeAreaView>
-    );
-  }
 
-  return (
-    <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
-      <View
-        className={`flex-row items-center px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
-      >
-        <Pressable onPress={handleBackPress} className="mr-4 p-2">
-          <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
-        </Pressable>
-        <Text
-          className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}
-        >
-          Outlet Details
+  const renderEditForm = () => (
+    <View className="space-y-4 p-4">
+      <View className="flex-row justify-between items-center mb-4">
+        <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'
+          }`}>
+          Edit Store Details
         </Text>
+        <Pressable
+          onPress={() => setIsEditing(false)}
+          className={`p-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-100'
+            }`}
+        >
+          <MaterialIcons
+            name="close"
+            size={24}
+            color={isDark ? '#fff' : '#374151'}
+          />
+        </Pressable>
       </View>
 
-      <ScrollView className="flex-1 px-4 py-4">
+      {renderEditableField(
+        'Store Name',
+        editedData.storeName,
+        text => setEditedData(prev => ({ ...prev, storeName: text }))
+      )}
 
-        <View
-          className={`p-4 rounded-xl mb-4 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+      {renderEditableField(
+        'Phone Number',
+        editedData.phoneNumber,
+        text => setEditedData(prev => ({ ...prev, phoneNumber: text })),
+        { keyboardType: 'phone-pad' }
+      )}
+
+      {renderEditableField(
+        'Owner Name',
+        editedData.propName,
+        text => setEditedData(prev => ({ ...prev, propName: text }))
+      )}
+
+      <View className="mb-4">
+        <Text className={`text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+          Route
+        </Text>
+        <Select
+          value={editedData.route}
+          options={ROUTES}
+          onChange={value => setEditedData(prev => ({ ...prev, route: value }))}
+          isDark={isDark}
+        />
+      </View>
+
+
+
+
+
+
+
+
+      <Pressable
+        onPress={handleUpdateLocation}
+        className="bg-blue-600 p-4 rounded-xl mb-4"
+      >
+        <Text className="text-white text-center font-medium">
+          Update Location
+        </Text>
+      </Pressable>
+
+      <View className="flex-row gap-4">
+        <Pressable
+          onPress={() => setIsEditing(false)}
+          className="flex-1 bg-gray-500 py-4 rounded-xl"
         >
-          {renderStoreDetails()}
-        </View>
-        <SalesTrackingGraph transactions={transactions} />
-        {renderTransactions()}
-      </ScrollView>
-    </SafeAreaView>
+          <Text className="text-white text-center font-medium">Cancel</Text>
+        </Pressable>
+        <Pressable
+          onPress={handleSaveChanges}
+          className="flex-1 bg-green-600 py-4 rounded-xl"
+        >
+          <Text className="text-white text-center font-medium">Save</Text>
+        </Pressable>
+      </View>
+    </View>
   );
+  return (
+  <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
+    {renderHeader()}
+    <Animated.ScrollView
+      onScroll={Animated.event(
+        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+        { useNativeDriver: true }
+      )}
+      className="flex-1"
+    >
+      <View className={`m-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+        {isEditing ? renderEditForm() : renderStoreInfo()}
+      </View>
+
+      {!isEditing && (
+        <View className="px-4">
+          <TransactionList
+            transactions={transactions}
+            isDark={isDark}
+            onTransactionUpdate={(updatedTransaction) => {
+              setTransactions(prev =>
+                prev.map(t => t.id === updatedTransaction.id ? updatedTransaction : t)
+              );
+            }}
+          />
+        </View>
+      )}
+    </Animated.ScrollView>
+    {renderGraphModal()}
+  </SafeAreaView>
+);
 }

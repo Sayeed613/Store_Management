@@ -26,19 +26,16 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
   const [newPayment, setNewPayment] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Safely calculate total paid with null checks
   const totalPaid = useMemo(() => {
     if (!order?.payments) return 0;
     return order.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   }, [order?.payments]);
 
-  // Safely calculate credit with null checks
   const credit = useMemo(() => {
     if (!order?.amount) return 0;
     return order.amount - (totalPaid || 0);
   }, [order?.amount, totalPaid]);
 
-  // Early return if no order or modal not visible
   if (!order || !visible) return null;
 
   const validatePayment = (amount) => {
@@ -72,6 +69,61 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
     return true;
   };
 
+  const handleAddPayment = async () => {
+    if (!validatePayment(newPayment)) return;
+
+    setLoading(true);
+    try {
+      const batch = writeBatch(db);
+      const paymentAmount = Number(newPayment);
+      const currentDate = new Date();
+
+      batch.update(doc(db, 'sales', order.id), {
+        payments: arrayUnion({
+          amount: paymentAmount,
+          date: currentDate,
+          paymentType: 'Cash'
+        }),
+        totalPaid: increment(paymentAmount),
+        status: order.amount - (totalPaid + paymentAmount) <= 0 ? 'Completed' : 'Pending',
+        lastPaymentDate: currentDate,
+        updatedAt: serverTimestamp()
+      });
+
+      if (order.outletId) {
+        batch.update(doc(db, 'outlets', order.outletId), {
+          pendingAmount: increment(-paymentAmount),
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      await batch.commit();
+
+      const updatedOrder = {
+        ...order,
+        totalPaid: (totalPaid || 0) + paymentAmount,
+        payments: [
+          ...(order.payments || []),
+          {
+            amount: paymentAmount,
+            date: currentDate,
+            paymentType: 'Cash'
+          }
+        ],
+        status: order.amount - (totalPaid + paymentAmount) <= 0 ? 'Completed' : 'Pending',
+        lastPaymentDate: currentDate
+      };
+
+      onPaymentAdded(updatedOrder);
+      setNewPayment('');
+    } catch (error) {
+      console.error('Payment error:', error);
+      Alert.alert('Error', 'Failed to add payment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatDate = (date) => {
     if (!date) return '';
     try {
@@ -86,74 +138,20 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
       return '';
     }
   };
-
-  const handleAddPayment = async () => {
-    if (!validatePayment(newPayment)) return;
-
-    setLoading(true);
+  const formateTime = (data ) =>{
+    if (!data) return '';
     try {
-      const currentDate = new Date();
-      const paymentAmount = Number(newPayment);
-
-      const newPaymentData = {
-        amount: paymentAmount,
-        date: currentDate,
-        paymentType: 'Cash',
-        notes: `Payment of ₹${paymentAmount}`
-      };
-
-      const newTotalPaid = totalPaid + paymentAmount;
-      const newRemainingBalance = order.amount - newTotalPaid;
-      const newStatus = newRemainingBalance <= 0 ? 'Completed' : 'Pending';
-
-      const batch = writeBatch(db);
-
-      // Update order document
-      const orderRef = doc(db, 'sales', order.id);
-      batch.update(orderRef, {
-        payments: arrayUnion(newPaymentData),
-        totalPaid: newTotalPaid,
-        remainingBalance: newRemainingBalance,
-        status: newStatus,
-        lastPaymentDate: currentDate,
-        updatedAt: serverTimestamp()
+      const timestamp = data?.seconds ? new Date(data.seconds * 1000) : new Date(data);
+      return timestamp.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
       });
-
-      // Update outlet document
-      const outletRef = doc(db, 'outlets', order.outletId);
-      batch.update(outletRef, {
-        pendingAmount: increment(-paymentAmount),
-        updatedAt: serverTimestamp(),
-        ...(newStatus === 'Completed' && { lastOrderStatus: 'Completed' })
-      });
-
-      await batch.commit();
-      setNewPayment('');
-
-      const updatedOrder = {
-        ...order,
-        payments: [...(order.payments || []), newPaymentData],
-        totalPaid: newTotalPaid,
-        remainingBalance: newRemainingBalance,
-        status: newStatus,
-        lastPaymentDate: currentDate
-      };
-
-      if (onPaymentAdded) {
-        onPaymentAdded(updatedOrder);
-      }
-
-      Alert.alert('Success', 'Payment added successfully', [
-        { text: 'OK', onPress: onClose }
-      ]);
     } catch (error) {
-      console.error('Error adding payment:', error);
-      Alert.alert('Error', 'Failed to add payment. Please try again.');
-    } finally {
-      setLoading(false);
+      console.error('Time formatting error:', error);
+      return '';
     }
-  };
-
+  }
 
   return (
     <Modal visible={visible} animationType="fade" transparent>
@@ -162,7 +160,6 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
           className={`w-[90%] rounded-2xl ${isDark ? 'bg-gray-900' : 'bg-white'} shadow-xl`}
           style={{ maxHeight: '80%' }}
         >
-          {/* Header */}
           <View className={`flex-row justify-between items-center p-4 border-b ${
             isDark ? 'border-gray-700' : 'border-gray-200'
           }`}>
@@ -183,7 +180,6 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
           </View>
 
           <ScrollView className="p-4">
-            {/* Summary Cards */}
             <View className="flex-row justify-between mb-4">
               <View className={`p-4 rounded-xl flex-1 mr-2 ${isDark ? 'bg-gray-800' : 'bg-blue-50'}`}>
                 <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -207,7 +203,6 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
               </View>
             </View>
 
-            {/* Payment Progress */}
             <View className="mb-4">
               <View className="flex-row justify-between mb-2">
                 <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -225,7 +220,6 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
               </View>
             </View>
 
-            {/* Payment Input */}
             {credit > 0 && (
               <View className="mb-6">
                 <Text className={`text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -283,7 +277,7 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
                         </Text>
                       </View>
                       <Text className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                        {item.notes}
+                        {formateTime(item.date)}
                       </Text>
                     </View>
                     <Text className={`${isDark ? 'text-gray-400' : 'text-gray-500'} text-sm`}>

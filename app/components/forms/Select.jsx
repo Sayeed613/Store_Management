@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { View, Text, Pressable, Modal, ScrollView } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useState } from 'react';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContextProvider';
 
 export const Select = ({
