@@ -1,62 +1,92 @@
-import { collection, query, where, getDocs, Timestamp, orderBy } from 'firebase/firestore';
+// firebase/analytics.ts
+
+import {
+  collection,
+  getDocs,
+  orderBy,
+  query,
+  Timestamp,
+  where
+} from 'firebase/firestore';
 import { db } from './config';
 
-export const fetchAnalytics = async () => {
+const getDateRangeForDays = (daysBack: number) => {
+  const now = new Date();
+
+  const endDate = new Date(now); // Today at 23:59:59
+  endDate.setHours(23, 59, 59, 999);
+
+  const startDate = new Date(now);
+  startDate.setDate(startDate.getDate() - daysBack); // include full `daysBack` period
+  startDate.setHours(0, 0, 0, 0);
+
+  return { startDate, endDate };
+};
+
+const snapshotToAnalytics = (snapshot) => {
+  let total = 0;
+  let cash = 0;
+  let credit = 0;
+  let count = 0;
+
+  snapshot.forEach((doc) => {
+    const data = doc.data();
+    const amount = parseFloat(data.amount) || 0;
+    const type = data.purchaseType?.toLowerCase();
+
+    total += amount;
+    count++;
+
+    if (type === 'cash') cash += amount;
+    else if (type === 'credit') credit += amount;
+  });
+
+  return { total, cash, credit, count };
+};
+
+export const fetchAnalytics = async (daysBack?: number) => {
   try {
-    const now = new Date();
-
-    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
     const ordersRef = collection(db, 'sales');
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
+    let filteredSnapshot;
 
-    const monthQuery = query(
-      ordersRef,
-      where('orderDate', '>=', Timestamp.fromDate(firstDayOfMonth)),
-      where('orderDate', '<', Timestamp.fromDate(firstDayNextMonth)),
-      orderBy('orderDate', 'desc')
-    );
+    if (daysBack) {
+      const range = getDateRangeForDays(daysBack);
+      startDate = range.startDate;
+      endDate = range.endDate;
 
-    const allOrdersQuery = query(ordersRef);
+      const filteredQuery = query(
+        ordersRef,
+        where('orderDate', '>=', Timestamp.fromDate(startDate)),
+        where('orderDate', '<=', Timestamp.fromDate(endDate)),
+        orderBy('orderDate', 'asc')  // IMPORTANT: orderBy asc with range filters
+      );
 
-    const [monthSnapshot, allOrdersSnapshot] = await Promise.all([
-      getDocs(monthQuery),
-      getDocs(allOrdersQuery)
-    ]);
+      filteredSnapshot = await getDocs(filteredQuery);
+    }
 
-    let monthlyTotal = 0;
-    let cashTotal = 0;
-    let creditTotal = 0;
-    let orderCount = 0;
+    const allOrdersSnapshot = await getDocs(ordersRef);
 
-    monthSnapshot.forEach(doc => {
-      const data = doc.data();
-      const amount = parseFloat(data.amount) || 0;
-
-      monthlyTotal += amount;
-      orderCount++;
-
-      if (data.purchaseType?.toLowerCase() === 'cash') {
-        cashTotal += amount;
-      } else if (data.purchaseType?.toLowerCase() === 'credit') {
-        creditTotal += amount;
-      }
-    });
-
-    const allTimeTotal = allOrdersSnapshot.docs.reduce((total, doc) => {
-      return total + (parseFloat(doc.data().amount) || 0);
-    }, 0);
+    const filteredStats = filteredSnapshot
+      ? snapshotToAnalytics(filteredSnapshot)
+      : snapshotToAnalytics(allOrdersSnapshot);
+    const allStats = snapshotToAnalytics(allOrdersSnapshot);
 
     return {
       analytics: {
-        monthlyData: [{
-          month: firstDayOfMonth.toLocaleString('default', { month: 'long' }),
-          cashAmount: cashTotal,
-          creditAmount: creditTotal,
-          totalAmount: monthlyTotal,
-          orderCount: orderCount,
-          allTimeTotal: allTimeTotal
-        }]
+        filterDays: daysBack || 'all',
+        range: daysBack
+          ? {
+              from: startDate?.toISOString(),
+              to: endDate?.toISOString()
+            }
+          : null,
+        cashAmount: filteredStats.cash,
+        creditAmount: filteredStats.credit,
+        totalAmount: filteredStats.total,
+        orderCount: filteredStats.count,
+        allTimeTotal: allStats.total
       }
     };
   } catch (error) {

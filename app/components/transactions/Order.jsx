@@ -114,84 +114,104 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     }
   }, [purchaseType]);
 
-  const handleSaveSale = async () => {
- if (!selectedOutlet) {
+  const isValidOrderDate = (date) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const orderDate = new Date(date);
+  orderDate.setHours(0, 0, 0, 0);
+
+  return orderDate <= today;
+};
+
+const handleSaveSale = async () => {
+
+  if (!selectedOutlet) {
     Alert.alert('Error', 'Please select an outlet');
     return;
   }
-
-  if (purchaseType === 'Credit') {
-    if (!totalAmount) {
-      Alert.alert('Error', 'Please enter the total amount');
-      return;
-    }
-  } else {
-    if (!amount) {
-      Alert.alert('Error', 'Please enter the amount');
-      return;
-    }
+    if (!isValidOrderDate(orderDate)) {
+    Alert.alert('Error', 'Order date cannot be in the future');
+    return;
   }
 
-    setLoading(true);
-    try {
-      const saleAmount = purchaseType === 'Credit' ? Number(totalAmount) : Number(amount);
-      const paid = purchaseType === 'Credit' ? Number(paidAmount || 0) : saleAmount;
-      const balance = Math.max(0, saleAmount - paid);
 
-      const initialPayment = paid > 0 ? [{
-        amount: paid,
-        date: orderDate,
-        paymentType: 'Cash',
-        notes: 'Initial payment'
-      }] : [];
+  const saleAmount = purchaseType === 'Credit' ? Number(totalAmount) : Number(amount);
+  const paid = purchaseType === 'Credit' ? Number(paidAmount || 0) : saleAmount;
 
-      const saleData = {
-        outletId: selectedOutlet.id,
-        storeName: selectedOutlet.storeName,
-        salesType,
-        purchaseType,
-        amount: saleAmount,
-        totalPaid: paid,
-        remainingBalance: balance,
-        status: balance === 0 ? 'Completed' : 'Pending',
-        customerName: customerName.trim(),
-        orderDate,
-        createdAt: serverTimestamp(),
-        payments: initialPayment
-      };
+  if (isNaN(saleAmount) || saleAmount <= 0) {
+    Alert.alert('Error', 'Please enter a valid amount');
+    return;
+  }
 
-      const saleRef = await addDoc(collection(db, 'sales'), saleData);
+  if (purchaseType === 'Credit' && paid > saleAmount) {
+    Alert.alert('Error', 'Paid amount cannot be greater than total amount');
+    return;
+  }
 
-      // Update outlet
-      const outletRef = doc(db, 'outlets', selectedOutlet.id);
-      await updateDoc(outletRef, {
-        lastOrderAmount: saleAmount,
-        lastOrderDate: orderDate,
-        lastOrderId: saleRef.id,
-        lastOrderType: purchaseType,
-        lastOrderStatus: balance === 0 ? 'Completed' : 'Pending',
-        lastSalesType: salesType,
-        totalOrders: increment(1),
-        totalAmount: increment(saleAmount),
-        pendingAmount: increment(balance),
-        updatedAt: serverTimestamp()
-      });
+  setLoading(true);
+  try {
+    const balance = Math.max(0, saleAmount - paid);
 
-      // Update local state and close modal
-      if (typeof onOrderSaved === 'function') {
-        onOrderSaved({ ...saleData, id: saleRef.id });
-      }
+    const initialPayment = paid > 0 ? [{
+      amount: paid,
+      date: orderDate,
+      paymentType: 'Cash',
+      notes: 'Initial payment'
+    }] : [];
 
-      handleClose();
-      Alert.alert('Success', 'Order saved successfully');
+    const saleData = {
+      outletId: selectedOutlet.id,
+      storeName: selectedOutlet.storeName,
+      salesType,
+      purchaseType,
+      amount: saleAmount,
+      totalPaid: paid,
+      remainingBalance: balance,
+      status: balance === 0 ? 'Completed' : 'Pending',
+      customerName: customerName.trim(),
+      orderDate,
+      createdAt: serverTimestamp(),
+      payments: initialPayment
+    };
 
-    } catch (error) {
-      console.error('Failed to save order:', error);
-      Alert.alert('Error', 'Failed to save order. Please try again.');
-    } finally {
-      setLoading(false);
+    // Add console log for debugging
+    console.log('Saving sale data:', saleData);
+
+    const saleRef = await addDoc(collection(db, 'sales'), saleData);
+    console.log('Sale saved with ID:', saleRef.id);
+
+    // Update outlet
+    const outletRef = doc(db, 'outlets', selectedOutlet.id);
+    await updateDoc(outletRef, {
+      lastOrderAmount: saleAmount,
+      lastOrderDate: orderDate,
+      lastOrderId: saleRef.id,
+      lastOrderType: purchaseType,
+      lastOrderStatus: balance === 0 ? 'Completed' : 'Pending',
+      lastSalesType: salesType,
+      totalOrders: increment(1),
+      totalAmount: increment(saleAmount),
+      pendingAmount: increment(balance),
+      updatedAt: serverTimestamp()
+    });
+
+    // Clear form and close modal
+    handleClose();
+
+    // Notify parent component
+    if (typeof onOrderSaved === 'function') {
+      onOrderSaved({ ...saleData, id: saleRef.id });
     }
-  };
+
+    Alert.alert('Success', 'Order saved successfully');
+  } catch (error) {
+    console.error('Failed to save order:', error);
+    Alert.alert('Error', `Failed to save order: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleClose = () => {
     setSearchText('');

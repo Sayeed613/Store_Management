@@ -41,31 +41,40 @@ export const getDateRanges = () => {
   };
 };
 
-export const filterOrdersByDateRange = (orders, startDate, endDate) => {
-  const outletOrders = new Map();
+export const filterOrdersByDateRange = (orders, selectedRangeKey) => {
+  const now = new Date();
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-  orders.forEach(order => {
-    if (!order.orderDate || isNaN(order.orderDate.getTime())) return;
+  const getDaysAgo = (date) => {
+    const diff = now - new Date(date).setHours(0, 0, 0, 0);
+    return Math.floor(diff / MS_PER_DAY);
+  };
 
-    const orderTime = order.orderDate.getTime();
-    const currentOrders = outletOrders.get(order.outletId) || [];
-    currentOrders.push({ ...order, orderTime });
-    outletOrders.set(order.outletId, currentOrders);
-  });
+  const ranges = {
+    fiveDays: (daysAgo) => daysAgo <= 5,
+    sevenDays: (daysAgo) => daysAgo > 5 && daysAgo <= 7,
+    fifteenDays: (daysAgo) => daysAgo > 7 && daysAgo <= 15,
+    thirtyDays: (daysAgo) => daysAgo > 15,
+  };
 
-  const filteredOrders = [];
+  const seenOutletIds = new Set();
+  const filtered = [];
 
-  outletOrders.forEach((outletOrderList, outletId) => {
-    outletOrderList.sort((a, b) => b.orderTime - a.orderTime);
-    const latestOrder = outletOrderList[0];
+  const sorted = [...orders].sort((a, b) => b.orderDate - a.orderDate);
 
-    if (
-      latestOrder.orderTime >= startDate.getTime() &&
-      latestOrder.orderTime <= endDate.getTime()
-    ) {
-      filteredOrders.push(latestOrder);
+  for (const order of sorted) {
+    if (!order.orderDate || seenOutletIds.has(order.outletId)) continue;
+
+    const daysAgo = getDaysAgo(order.orderDate);
+    const matches = ranges[selectedRangeKey];
+
+    if (matches(daysAgo)) {
+      filtered.push(order);
+      seenOutletIds.add(order.outletId);
     }
-  });
+  }
 
-  return filteredOrders.sort((a, b) => b.orderDate.getTime() - a.orderDate.getTime());
+  return filtered;
 };
+
+

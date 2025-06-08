@@ -61,21 +61,33 @@ const TransactionItem = ({ transaction, isDark, onDelete, onAddPayment, index })
 
   const renderRightActions = () => (
     <Pressable
-      onPress={() => Alert.alert(
-        'Delete Transaction',
-        'Are you sure you want to delete this transaction?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', onPress: () => onDelete?.(transaction.id), style: 'destructive' }
-        ]
-      )}
+      onPress={() => {
+        Alert.alert(
+          'Delete Transaction',
+          'Are you sure you want to delete this transaction?',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel'
+            },
+            {
+              text: 'Delete',
+              onPress: () => {
+                if (onDelete && transaction.id) {
+                  onDelete(transaction.id);
+                }
+              },
+              style: 'destructive'
+            }
+          ]
+        );
+      }}
       className="bg-red-500 justify-center items-center w-16 rounded-md mb-2"
       android_ripple={{ color: '#b91c1c' }}
     >
       <MaterialIcons name="delete" size={24} color="white" />
     </Pressable>
   );
-
   return (
     <Animated.View entering={FadeInDown.delay(index * 80).springify()}>
       <Swipeable renderRightActions={renderRightActions}>
@@ -150,6 +162,14 @@ const TransactionList = ({ transactions = [], isDark, onDeleteTransaction, onTra
   const [visibleCount, setVisibleCount] = useState(5);
   const [filter, setFilter] = useState('all');
   const INCREMENT = 5;
+const handleDeleteTransaction = useCallback((transactionId) => {
+  if (!transactionId) return;
+
+  if (onDeleteTransaction) {
+    onDeleteTransaction(transactionId);
+    setVisibleCount(prev => Math.max(INCREMENT, prev - 1));
+  }
+}, [onDeleteTransaction]);
 
   const storeDetails = useMemo(() =>
     transactions[0] || null,
@@ -162,12 +182,12 @@ const TransactionList = ({ transactions = [], isDark, onDeleteTransaction, onTra
     cash: transactions.filter(t => t.purchaseType === 'Cash').length,
   }), [transactions]);
 
-  const filteredTransactions = useMemo(() => {
-    if (filter === 'all') return transactions;
-    return transactions.filter(t =>
-      t.purchaseType?.toLowerCase() === filter.toLowerCase()
-    );
-  }, [transactions, filter]);
+const filteredTransactions = useMemo(() => {
+  if (filter === 'all') return transactions;
+  return transactions.filter(t =>
+    t.purchaseType?.toLowerCase() === filter.toLowerCase()
+  );
+}, [transactions, filter]);
 
   const displayedTransactions = useMemo(() =>
     filteredTransactions.slice(0, visibleCount),
@@ -254,7 +274,7 @@ const TransactionList = ({ transactions = [], isDark, onDeleteTransaction, onTra
                 key={transaction.id}
                 transaction={transaction}
                 isDark={isDark}
-                onDelete={onDeleteTransaction}
+                onDelete={handleDeleteTransaction}
                 onAddPayment={handleAddPayment}
                 index={index}
               />

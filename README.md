@@ -1,71 +1,123 @@
 # Store Management App
 
 ## Overview
-A comprehensive mobile application for managing stores, sales tracking, and payment collections. Built with React Native, Expo, and Firebase.
+A React Native mobile application for managing store sales, credit tracking, and payment collections. Built with Expo and Firebase.
 
 ## Features
 
-### 1. Store Management
-- Add/Edit/Delete stores
-- Store details tracking:
-  - Store name and owner information
-  - Contact details
+### 1. Order Management
+- Track daily, weekly, and monthly orders
+- Filter orders by date ranges:
+  - Today's orders
+  - Last 5 days
+  - 6-14 days history
+  - 15+ days history
+- Track payment status (Cash/Credit)
+- View order details and history
+
+### 2. Store Management
+- Add and manage stores
+- Store information tracking:
+  - Store name and owner details
+  - Contact information
   - Location mapping
   - Route assignment
-  - Payment history
+- Track pending credits per store
 
-### 2. Sales Operations
-- Record new sales transactions
-- Multiple payment types:
-  - Cash payments
-  - Credit sales
-- Sales categorization:
-  - Godown sales
-  - Salesman sales
-  - Store sales
+### 3. Sales & Payments
+- Record new sales with:
+  - Multiple payment types (Cash/Credit)
+  - Sales categories (Godown/Salesman/Store)
+  - Partial payments
+  - Balance tracking
+- Payment collection management
+- Real-time balance updates
 
-### 3. Payment Management
-- Track pending payments
-- Record partial payments
-- Payment history
-- Dynamic balance calculation
-- Status updates (Completed/Pending)
-
-### 4. Analytics & Reporting
-- Monthly sales overview
+### 4. Analytics
+- Sales tracking over time
 - Credit vs Cash analysis
-- Store-wise performance
-- Route-wise analysis
-- Payment collection trends
-
-### 5. Location Features
-- Store location mapping
-- Route optimization
-- Direction support
-- Address management
+- Payment collection status
+- Store performance metrics
+- Date-wise order analysis
 
 ## Technical Stack
 
 ### Frontend
 - React Native / Expo
 - TailwindCSS (NativeWind)
-- Expo Router
+- Expo Router v2
 
 ### Backend
 - Firebase
   - Firestore Database
-  - Authentication
-  - Cloud Functions
+  - Real-time updates
 
-### Maps & Location
+### Location Services
 - React Native Maps
-- Expo Location
+- Expo Location Services
+
+## Project Structure
+```
+app/
+├── (tabs)/              # Main screens (Orders, Stores, Settings)
+├── components/          # UI Components
+│   ├── analytics/       # Analytics components
+│   ├── common/         # Shared components
+│   ├── forms/          # Form elements
+│   ├── maps/           # Map components
+│   ├── outlet/         # Store components
+│   └── transactions/   # Order components
+├── constants/          # App constants
+├── context/           # Theme context
+├── hooks/             # Custom hooks
+├── services/          # Firebase config
+└── utils/             # Helper functions
+```
+
+## Data Models
+
+### Store
+```javascript
+{
+  storeName: string,
+  propName: string,
+  phoneNumber: string,
+  route: string,
+  street: string,
+  locality: string,
+  landmark: string,
+  location: {
+    latitude: number,
+    longitude: number
+  }
+}
+```
+
+### Order/Sale
+```javascript
+{
+  outletId: string,
+  storeName: string,
+  salesType: 'Godown' | 'Salesman' | 'Store',
+  purchaseType: 'Cash' | 'Credit',
+  amount: number,
+  totalPaid: number,
+  remainingBalance: number,
+  status: 'Completed' | 'Pending',
+  orderDate: timestamp,
+  payments: Array<{
+    amount: number,
+    date: timestamp,
+    paymentType: string
+  }>
+}
+```
 
 ## Installation
 
 ```bash
 # Clone the repository
-git clone <https://github.com/Sayeed613/Store_Management.git>
+git clone <repository-url>
 
 # Install dependencies
 npm install
@@ -75,102 +127,23 @@ npx expo start
 ```
 
 ## Environment Setup
+1. Set up a Firebase project
+2. Configure Firestore Database
+3. Update Firebase configuration in `app/services/firebase/config.js`
 
-1. Create a Firebase project
-2. Add your Firebase configuration in `app/services/firebase/config.js`
-3. Enable necessary Firebase services:
-   - Firestore Database
-   - Authentication
-   - Cloud Functions (optional)
-
-## Project Structure
-
-```
-app/
-├── (tabs)/              # Main tab screens
-├── components/          # Reusable components
-│   ├── analytics/      # Analytics components
-│   ├── common/         # Common UI components
-│   ├── forms/          # Form components
-│   ├── maps/          # Map related components
-│   ├── outlet/        # Store management components
-│   └── transactions/  # Transaction components
-├── constants/          # App constants
-├── context/           # Context providers
-├── hooks/             # Custom hooks
-├── screens/           # Additional screens
-├── services/          # Firebase services
-└── utils/             # Utility functions
-```
-
-## Key Features Implementation
-
-### Store Management
-- CRUD operations for stores
-- Location tracking
-- Payment history
-- Status management
-
-### Sales Process
-1. Select store
-2. Choose sale type
-3. Enter amount
-4. Process payment
-5. Update store status
-
-### Payment Collection
-1. View pending payments
-2. Record new payments
-3. Update payment status
-4. Generate payment history
-
-## Data Structure
-
-### Store Document
-```javascript
-{
-  storeName: string,
-  propName: string,
-  phoneNumber: string,
-  route: string,
-  address: string,
-  location: {
-    latitude: number,
-    longitude: number
-  },
-  lastOrderAmount: number,
-  pendingAmount: number,
-  totalOrders: number
-}
-```
-
-### Transaction Document
-```javascript
-{
-  outletId: string,
-  amount: number,
-  purchaseType: 'Cash' | 'Credit',
-  salesType: 'Godown' | 'Salesman' | 'Store',
-  status: 'Completed' | 'Pending',
-  payments: Array<Payment>,
-  orderDate: timestamp
-}
-```
+## Key Features
+- Real-time order tracking
+- Flexible date filtering
+- Payment status monitoring
+- Store credit management
+- Location-based store mapping
+- Route-based organization
 
 ## Contributing
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 MIT License
 
 ## Support
-For support, email [Sayeedahmed90082@gmail.com]
-
-
-
-
-
+For support, email: Sayeedahmed90082@gmail.com

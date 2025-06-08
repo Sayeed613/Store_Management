@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, ScrollView, Text, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { useTheme } from '../../context/ThemeContextProvider';
@@ -10,6 +10,9 @@ const SalesTrackingGraph = ({ transactions = [] }) => {
   const isDark = theme === 'dark';
   const screenWidth = Dimensions.get('window').width - 48;
   const chartWidth = Math.max(screenWidth, screenWidth * 1.5);
+
+  // State for tooltip info
+  const [tooltipPos, setTooltipPos] = useState({ visible: false, x: 0, y: 0, value: 0, label: '' });
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -31,15 +34,23 @@ const SalesTrackingGraph = ({ transactions = [] }) => {
       borderRadius: 16,
     },
     propsForDots: {
-      r: '4',
-      strokeWidth: '2',
-      stroke: isDark ? '#fff' : '#000'
+      r: '6',
+      strokeWidth: '3',
+      stroke: isDark ? '#22c55e' : '#16a34a',
+      // Add shadow for better visibility
+      style: {
+        shadowColor: isDark ? '#000' : '#888',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.6,
+        shadowRadius: 4,
+      }
     },
     propsForBackgroundLines: {
       strokeDasharray: '', // Solid lines
     },
     propsForLabels: {
       fontSize: 10,
+      fontWeight: '600',
     },
   };
 
@@ -92,13 +103,21 @@ const SalesTrackingGraph = ({ transactions = [] }) => {
         datasets: [
           {
             data: last6Months.map(m => m.totalSales),
-            color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`,
-            strokeWidth: 2
+            color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`, // green
+            strokeWidth: 3,
+            withShadow: true,
+            withArea: true,
+            gradientFrom: '#22c55e',
+            gradientTo: '#a7f3d0',
           },
           {
             data: last6Months.map(m => m.creditSales),
-            color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-            strokeWidth: 2
+            color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`, // red
+            strokeWidth: 3,
+            withShadow: true,
+            withArea: true,
+            gradientFrom: '#ef4444',
+            gradientTo: '#fecaca',
           }
         ],
         legend: ['Total Sales', 'Credit Sales']
@@ -154,7 +173,7 @@ const SalesTrackingGraph = ({ transactions = [] }) => {
   }, [transactions]);
 
   return (
-    <View className={`rounded-xl ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
+    <View className={`rounded-xl p-4 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
       <View className="flex-row justify-between items-center mb-6">
         <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Monthly Sales Overview
@@ -201,11 +220,44 @@ const SalesTrackingGraph = ({ transactions = [] }) => {
             withVerticalLines={false}
             withHorizontalLines={true}
             withDots={true}
-            withShadow={false}
+            withShadow={true}
             withInnerLines={false}
             yAxisLabel="₹"
             yAxisInterval={1}
+            // Add onDataPointClick for tooltips
+            onDataPointClick={(data) => {
+              setTooltipPos({
+                visible: true,
+                x: data.x,
+                y: data.y,
+                value: data.value,
+                label: processData.labels[data.index],
+              });
+            }}
           />
+          {/* Tooltip */}
+          {tooltipPos.visible && (
+            <View
+              style={{
+                position: 'absolute',
+                left: tooltipPos.x - 30,
+                top: tooltipPos.y - 40,
+                backgroundColor: isDark ? '#111827' : '#f3f4f6',
+                padding: 6,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: isDark ? '#22c55e' : '#16a34a',
+                zIndex: 10,
+              }}
+            >
+              <Text style={{ color: isDark ? '#d1fae5' : '#065f46', fontWeight: '700' }}>
+                {tooltipPos.label}
+              </Text>
+              <Text style={{ color: isDark ? '#d1fae5' : '#065f46' }}>
+                ₹{tooltipPos.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
