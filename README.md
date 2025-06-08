@@ -68,10 +68,10 @@ app/
 │   ├── outlet/         # Store components
 │   └── transactions/   # Order components
 ├── constants/          # App constants
-├── context/           # Theme context
-├── hooks/             # Custom hooks
-├── services/          # Firebase config
-└── utils/             # Helper functions
+├── context/            # Theme context
+├── hooks/              # Custom hooks
+├── services/           # Firebase config
+└── utils/              # Helper functions
 ```
 
 ## Data Models
@@ -113,16 +113,31 @@ app/
 }
 ```
 
+## Firebase Operations
+
+### Daily Operations
+| Operation | Collection | Reads | Writes | Frequency | Daily Total |
+|-----------|------------|--------|---------|-----------|-------------|
+| List Stores | `stores` | 1 query | 0 | ~10 times | 10 reads |
+| View Store | `stores` | 1 | 0 | ~20 times | 20 reads |
+| Add/Edit Store | `stores` | 1 | 1 | ~2 times | 2 reads, 2 writes |
+| Create Sale | `sales` | 1 | 1 | ~30 times | 30 reads, 30 writes |
+| Update Payment | `sales` | 1 | 1 | ~15 times | 15 reads, 15 writes |
+| View Orders | `sales` | 1 query | 0 | ~50 times | 50 reads |
+| Filter by Date | `sales` | 1 query | 0 | ~20 times | 20 reads |
+
+### Monthly Estimate
+| Type | Daily Average | Monthly Total | Firebase Tier |
+|------|---------------|---------------|---------------|
+| Reads | ~147 | ~4,410 | Free tier (50K/day) |
+| Writes | ~47 | ~1,410 | Free tier (20K/day) |
+
 ## Installation
-
 ```bash
-# Clone the repository
-git clone <repository-url>
+git clone <https://github.com/Sayeed613/Store_Management.git>n
 
-# Install dependencies
 npm install
 
-# Start the development server
 npx expo start
 ```
 
@@ -130,14 +145,6 @@ npx expo start
 1. Set up a Firebase project
 2. Configure Firestore Database
 3. Update Firebase configuration in `app/services/firebase/config.js`
-
-## Key Features
-- Real-time order tracking
-- Flexible date filtering
-- Payment status monitoring
-- Store credit management
-- Location-based store mapping
-- Route-based organization
 
 ## Contributing
 Contributions are welcome! Please feel free to submit a Pull Request.
