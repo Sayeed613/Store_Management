@@ -189,11 +189,12 @@ export default function Stores() {
   }, []);
 
   const renderOutlet = useCallback(({ item }) => {
-    const { storeName, propName, phoneNumber, route, fullAddress, id } = item;
+    const { storeName, propName, phoneNumber, route, fullAddress, id , creditLimit} = item;
     const orderInfo = outletOrders[id] || {};
     const lastOrder = orderInfo.lastOrder;
     const pendingAmount = orderInfo.pendingAmount || 0;
     const creditOrders = orderInfo.creditOrders || [];
+      const availableCredit = (creditLimit || 0);
 
     return (
       <Pressable
@@ -213,6 +214,7 @@ export default function Stores() {
                 : '',
             lastOrderAmount: lastOrder?.amount || 0,
             pendingAmount,
+            creditLimit,
             creditOrders: JSON.stringify(creditOrders)
           }
         })}
@@ -237,9 +239,14 @@ export default function Stores() {
                 </View>
               </View>
 
-              <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              <View className='flex-row justify-between  items-center'>
+                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 Name : {propName}
               </Text>
+                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                 Credit Limit : {availableCredit}
+                  </Text>
+              </View>
 
         {pendingAmount > 0 && (
           <View className="mt-2  ">

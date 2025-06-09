@@ -134,7 +134,7 @@ app/
 
 ## Installation
 ```bash
-git clone <https://github.com/Sayeed613/Store_Management.git>n
+git clone <https://github.com/Sayeed613/Store_Management.git>
 
 npm install
 

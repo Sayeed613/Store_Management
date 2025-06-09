@@ -125,19 +125,19 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
 };
 
 const handleSaveSale = async () => {
-
   if (!selectedOutlet) {
     Alert.alert('Error', 'Please select an outlet');
     return;
   }
-    if (!isValidOrderDate(orderDate)) {
+
+  if (!isValidOrderDate(orderDate)) {
     Alert.alert('Error', 'Order date cannot be in the future');
     return;
   }
 
-
   const saleAmount = purchaseType === 'Credit' ? Number(totalAmount) : Number(amount);
   const paid = purchaseType === 'Credit' ? Number(paidAmount || 0) : saleAmount;
+  const balance = Math.max(0, saleAmount - paid);
 
   if (isNaN(saleAmount) || saleAmount <= 0) {
     Alert.alert('Error', 'Please enter a valid amount');
@@ -151,8 +151,6 @@ const handleSaveSale = async () => {
 
   setLoading(true);
   try {
-    const balance = Math.max(0, saleAmount - paid);
-
     const initialPayment = paid > 0 ? [{
       amount: paid,
       date: orderDate,
@@ -175,11 +173,7 @@ const handleSaveSale = async () => {
       payments: initialPayment
     };
 
-    // Add console log for debugging
-    console.log('Saving sale data:', saleData);
-
     const saleRef = await addDoc(collection(db, 'sales'), saleData);
-    console.log('Sale saved with ID:', saleRef.id);
 
     // Update outlet
     const outletRef = doc(db, 'outlets', selectedOutlet.id);
@@ -196,10 +190,8 @@ const handleSaveSale = async () => {
       updatedAt: serverTimestamp()
     });
 
-    // Clear form and close modal
     handleClose();
 
-    // Notify parent component
     if (typeof onOrderSaved === 'function') {
       onOrderSaved({ ...saleData, id: saleRef.id });
     }
@@ -293,13 +285,17 @@ const handleSaveSale = async () => {
                   >
                     {item.propName} • {item.phoneNumber}
                   </Text>
-                  <Text
-                    className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-600'
-                      }`}
-                    numberOfLines={1}
-                  >
-                    {[item.street, item.route, item.locality].filter(Boolean).join(', ')}
-                  </Text>
+                 <View className='flex-row justify-between items-center'>
+          <Text className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+          {[item.street, item.route, item.locality]
+            .filter(Boolean)
+            .join(', ')}
+        </Text>
+        <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Credit Limit: ₹{item.creditLimit || 0}
+          </Text>
+        </View>
+
                 </Pressable>
               )}
             />
@@ -324,11 +320,16 @@ const handleSaveSale = async () => {
         <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
           {selectedOutlet.propName} • {selectedOutlet.phoneNumber}
         </Text>
-        <Text className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+        <View className='flex-row justify-between items-center'>
+          <Text className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
           {[selectedOutlet.street, selectedOutlet.route, selectedOutlet.locality]
             .filter(Boolean)
             .join(', ')}
         </Text>
+        <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Credit Limit: ₹{selectedOutlet.creditLimit || 0}
+          </Text>
+        </View>
       </View>
     </Pressable>
   );

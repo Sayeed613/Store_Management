@@ -325,61 +325,61 @@ export default function OutletDetail() {
 
         {/* Address and Phone */}
         <View className="flex-row justify-between">
-  {/* Address Section */}
-  <View className="flex-1 mr-4">
-    <View className="flex-row items-center mb-1">
-      <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Address</Text>
-       <MaterialIcons
-        name="open-in-new"
-        size={16}
-        color={isDark ? '#60a5fa' : '#2563eb'}
-        style={{ marginLeft: 6 }}
-      />
-    </View>
-    <Pressable
-      onPress={openInMaps}
-      accessibilityLabel="Open address in map"
-      accessibilityRole="button"
-      className="flex-row items-center"
-    >
-      <Text className={`text-base underline ${isDark ? 'text-white' : 'text-gray-900'}`}>
-        {[outletData?.street, outletData?.locality, outletData?.landmark].filter(Boolean).join(', ')}
-      </Text>
+          {/* Address Section */}
+          <View className="flex-1 mr-4">
+            <View className="flex-row items-center mb-1">
+              <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Address</Text>
+              <MaterialIcons
+                name="open-in-new"
+                size={16}
+                color={isDark ? '#60a5fa' : '#2563eb'}
+                style={{ marginLeft: 6 }}
+              />
+            </View>
+            <Pressable
+              onPress={openInMaps}
+              accessibilityLabel="Open address in map"
+              accessibilityRole="button"
+              className="flex-row items-center"
+            >
+              <Text className={`text-base underline ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {[outletData?.street, outletData?.locality, outletData?.landmark].filter(Boolean).join(', ')}
+              </Text>
 
-    </Pressable>
+            </Pressable>
 
-    <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-      Tap to get directions
-    </Text>
-  </View>
+            <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Tap to get directions
+            </Text>
+          </View>
 
-  {/* Phone Section */}
-  <View className="flex-1">
-    <View className="flex-row items-center mb-1">
-      <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Phone</Text>
-      <MaterialIcons
-        name="phone"
-        size={20}
-        color={isDark ? '#4ade80' : '#16a34a'}
-        style={{ marginLeft: 8 }}
-      />
-    </View>
+          {/* Phone Section */}
+          <View className="flex-1">
+            <View className="flex-row items-center mb-1">
+              <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Phone</Text>
+              <MaterialIcons
+                name="phone"
+                size={20}
+                color={isDark ? '#4ade80' : '#16a34a'}
+                style={{ marginLeft: 8 }}
+              />
+            </View>
 
-    <Pressable
-      onPress={handleCall}
-      accessibilityLabel="Call this number"
-      accessibilityRole="button"
-      className="flex-row items-center"
-    >
-      <Text className={`text-base underline ${isDark ? 'text-white' : 'text-gray-900'}`}>
-        {outletData?.phoneNumber}
-      </Text>
-    </Pressable>
-    <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-      Tap to call
-    </Text>
-  </View>
-</View>
+            <Pressable
+              onPress={handleCall}
+              accessibilityLabel="Call this number"
+              accessibilityRole="button"
+              className="flex-row items-center"
+            >
+              <Text className={`text-base underline ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {outletData?.phoneNumber}
+              </Text>
+            </Pressable>
+            <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Tap to call
+            </Text>
+          </View>
+        </View>
 
 
 

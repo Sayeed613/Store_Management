@@ -28,7 +28,7 @@ export const Select = ({
       )}
       <Pressable
         onPress={() => setModalVisible(true)}
-        className={`border rounded-xl p-4 flex-row items-center justify-between ${
+        className={`border rounded-xl p-3 flex-row items-center justify-between ${
           isDark
             ? 'border-gray-700 bg-[#1e1e1e]'
             : 'border-gray-300 bg-white'
