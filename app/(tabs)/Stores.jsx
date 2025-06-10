@@ -1,19 +1,17 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Entypo, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
   collection,
-  getDocs,
   limit,
+  onSnapshot,
   orderBy,
   query,
-  startAfter,
   where
 } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
   Pressable,
-  RefreshControl,
   Text,
   TextInput,
   View
@@ -24,6 +22,31 @@ import { useTheme } from '../context/ThemeContextProvider';
 import { db } from '../services/firebase/config';
 
 const ITEMS_PER_PAGE = 12;
+
+const formatDate = (date) => {
+  if (!date) return 'No orders yet';
+  try {
+    let timestamp;
+    if (date?.toDate) {
+      timestamp = date.toDate();
+    } else if (date?.seconds) {
+      timestamp = new Date(date.seconds * 1000);
+    } else if (date instanceof Date) {
+      timestamp = date;
+    } else {
+      return 'Invalid date';
+    }
+
+    return timestamp.toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  } catch (error) {
+    console.error('Date formatting error:', error);
+    return 'Date error';
+  }
+};
 
 export default function Stores() {
   const router = useRouter();
@@ -36,112 +59,100 @@ export default function Stores() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [outletOrders, setOutletOrders] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastVisible, setLastVisible] = useState(null);
   const [hasMore, setHasMore] = useState(true);
 
-  const fetchOutlets = async (isLoadMore = false) => {
-    try {
-      let q = query(
+  useEffect(() => {
+    setIsLoading(true);
+    let unsubscribeOutlets;
+    let unsubscribeOrders = {};
+
+    const setupOutletListener = () => {
+      const q = query(
         collection(db, 'outlets'),
         orderBy('storeName'),
         limit(ITEMS_PER_PAGE)
       );
 
-      if (isLoadMore && lastVisible) {
-        q = query(
-          collection(db, 'outlets'),
-          orderBy('storeName'),
-          startAfter(lastVisible),
-          limit(ITEMS_PER_PAGE)
-        );
-      }
+      unsubscribeOutlets = onSnapshot(q, async (snapshot) => {
+        const outletList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
 
-      const snapshot = await getDocs(q);
-      const outletList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+        const activeOutlets = outletList.filter(o => o.status === 'active');
+        console.log('Filtered active outlets:', activeOutlets);
 
-      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
-      setHasMore(snapshot.docs.length === ITEMS_PER_PAGE);
+        setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+        setHasMore(snapshot.docs.length === ITEMS_PER_PAGE);
+        setOutlets(activeOutlets);
+        setFilteredOutlets(activeOutlets);
 
-      const outletIds = outletList.map(o => o.id);
-      const newOrdersMap = {};
-
-      if (outletIds.length > 0) {
+        const activeOutletIds = activeOutlets.map(o => o.id);
         const chunks = [];
-        for (let i = 0; i < outletIds.length; i += 10) {
-          chunks.push(outletIds.slice(i, i + 10));
+        for (let i = 0; i < activeOutletIds.length; i += 10) {
+          chunks.push(activeOutletIds.slice(i, i + 10));
         }
 
-        await Promise.all(chunks.map(async (chunk) => {
-          // Modified query to fetch all orders
+        Object.values(unsubscribeOrders).forEach(unsub => unsub());
+        unsubscribeOrders = {};
+
+        chunks.forEach(chunk => {
           const ordersQuery = query(
             collection(db, 'sales'),
             where('outletId', 'in', chunk),
             orderBy('orderDate', 'desc')
           );
 
-          const ordersSnapshot = await getDocs(ordersQuery);
+          unsubscribeOrders[chunk.join()] = onSnapshot(ordersQuery, (ordersSnapshot) => {
+            const newOrdersMap = {};
 
-          ordersSnapshot.docs.forEach(doc => {
-            const order = { id: doc.id, ...doc.data() };
-            const outletId = order.outletId;
+            ordersSnapshot.docs.forEach(doc => {
+              const order = { id: doc.id, ...doc.data() };
+              const outletId = order.outletId;
 
-            if (!newOrdersMap[outletId]) {
-              newOrdersMap[outletId] = {
-                lastOrder: null,
-                pendingAmount: 0,
-                creditOrders: []
-              };
-            }
-
-            // Update last order
-            if (!newOrdersMap[outletId].lastOrder ||
-                (order.orderDate?.seconds > newOrdersMap[outletId].lastOrder.orderDate?.seconds)) {
-              newOrdersMap[outletId].lastOrder = order;
-            }
-
-            // Track pending credit orders
-            if (order.purchaseType === 'Credit' && order.status === 'Pending') {
-              const remainingBalance = order.amount - (order.totalPaid || 0);
-              if (remainingBalance > 0) {
-                newOrdersMap[outletId].pendingAmount += remainingBalance;
-                newOrdersMap[outletId].creditOrders.push(order);
+              if (!newOrdersMap[outletId]) {
+                newOrdersMap[outletId] = {
+                  lastOrder: null,
+                  pendingAmount: 0,
+                  creditOrders: []
+                };
               }
-            }
+
+              if (
+                !newOrdersMap[outletId].lastOrder ||
+                (order.orderDate?.seconds > newOrdersMap[outletId].lastOrder.orderDate?.seconds)
+              ) {
+                newOrdersMap[outletId].lastOrder = order;
+              }
+
+              if (order.purchaseType === 'Credit' && order.status === 'Pending') {
+                const remainingBalance = order.amount - (order.totalPaid || 0);
+                if (remainingBalance > 0) {
+                  newOrdersMap[outletId].pendingAmount += remainingBalance;
+                  newOrdersMap[outletId].creditOrders.push(order);
+                }
+              }
+            });
+
+            setOutletOrders(prev => ({ ...prev, ...newOrdersMap }));
           });
-        }));
-      }
+        });
 
-      if (isLoadMore) {
-        setOutlets(prev => [...prev, ...outletList]);
-        setFilteredOutlets(prev => [...prev, ...outletList]);
-        setOutletOrders(prev => ({ ...prev, ...newOrdersMap }));
-      } else {
-        setOutlets(outletList);
-        setFilteredOutlets(outletList);
-        setOutletOrders(newOrdersMap);
-      }
-    } catch (error) {
-      console.error('Failed to load data:', error);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
+        setIsLoading(false);
+      }, (error) => {
+        console.error('Real-time data error:', error);
+        setIsLoading(false);
+      });
+    };
 
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    setLastVisible(null);
-    await fetchOutlets();
+    setupOutletListener();
+
+    return () => {
+      if (unsubscribeOutlets) unsubscribeOutlets();
+      Object.values(unsubscribeOrders).forEach(unsub => unsub());
+    };
   }, []);
-
-  const handleLoadMore = useCallback(async () => {
-    if (!hasMore || isLoading) return;
-    await fetchOutlets(true);
-  }, [hasMore, isLoading, lastVisible]);
 
   const handleSearch = useCallback((text) => {
     setSearchText(text);
@@ -159,42 +170,25 @@ export default function Stores() {
     setFilteredOutlets(filtered);
   }, [outlets]);
 
-  const formatDate = useCallback((date) => {
-    if (!date) return 'No orders yet';
-    try {
-      let timestamp;
-      if (date?.toDate) {
-        timestamp = date.toDate();
-      } else if (date?.seconds) {
-        timestamp = new Date(date.seconds * 1000);
-      } else if (date instanceof Date) {
-        timestamp = date;
-      } else {
-        return 'Invalid date';
-      }
-
-      return timestamp.toLocaleDateString('en-IN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch (error) {
-      console.error('Date formatting error:', error);
-      return 'Date error';
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchOutlets();
-  }, []);
-
   const renderOutlet = useCallback(({ item }) => {
-    const { storeName, propName, phoneNumber, route, fullAddress, id , creditLimit} = item;
+    const {
+      storeName,
+      propName,
+      phoneNumber,
+      route,
+      fullAddress,
+      id,
+      creditLimit,
+      status
+    } = item;
+
     const orderInfo = outletOrders[id] || {};
     const lastOrder = orderInfo.lastOrder;
     const pendingAmount = orderInfo.pendingAmount || 0;
     const creditOrders = orderInfo.creditOrders || [];
-      const availableCredit = (creditLimit || 0);
+
+    const lastOrderAmount = lastOrder?.amount || 0;
+    const lastOrderDate = lastOrder?.orderDate;
 
     return (
       <Pressable
@@ -207,76 +201,57 @@ export default function Stores() {
             phoneNumber,
             fullAddress: fullAddress || '',
             location: JSON.stringify(item.location),
-            lastOrderDate: lastOrder?.orderDate?.toDate?.()
-              ? lastOrder.orderDate.toDate().toISOString()
-              : lastOrder?.orderDate?.seconds
-                ? new Date(lastOrder.orderDate.seconds * 1000).toISOString()
-                : '',
-            lastOrderAmount: lastOrder?.amount || 0,
+            lastOrderDate: lastOrderDate?.seconds
+              ? new Date(lastOrderDate.seconds * 1000).toISOString()
+              : '',
+            lastOrderAmount,
             pendingAmount,
             creditLimit,
-            creditOrders: JSON.stringify(creditOrders)
+            creditOrders: JSON.stringify(creditOrders),
+            status
           }
         })}
       >
-         <View
-          className={`border rounded-xl p-4 mb-4 ${
-            isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-          }`}
-        >
-          <View className="flex-row justify-between items-start">
-            <View className="flex-1">
-              <View className="flex-row items-center justify-between mb-2">
-                <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  Store : {storeName}
-                </Text>
-                <View className={`px-3 py-1 rounded-full ${
-                  isDark ? 'bg-gray-700' : 'bg-blue-50'
-                }`}>
-                  <Text className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-600'}`}>
-                    {route || 'N/A'}
-                  </Text>
-                </View>
-              </View>
+               <View className={`border rounded-xl p-4 mb-4 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'}`}>
 
-              <View className='flex-row justify-between  items-center'>
-                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Name : {propName}
-              </Text>
-                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                 Credit Limit : {availableCredit}
-                  </Text>
-              </View>
-
-        {pendingAmount > 0 && (
-          <View className="mt-2  ">
-            <View className="flex-row justify-between items-center">
-              <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Pending Credit:
-              </Text>
-              <Text className={`text-sm font-medium ${
-                isDark ? 'text-red-400' : 'text-red-600'
-              }`}>
-                ₹{pendingAmount.toLocaleString('en-IN', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
-                })}
-              </Text>
+          {/* Store Name & Route */}
+          <View className="flex-row justify-between items-center mb-2">
+            <View className="flex-row items-center space-x-2">
+              <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{storeName}</Text>
             </View>
-
+            <View className="flex-row items-center space-x-1">
+              <Entypo name="location-pin" size={16} color="#3B82F6" />
+              <Text className="text-sm text-blue-600">{route || 'N/A'}</Text>
+            </View>
           </View>
-        )}
-              <View className="flex-row justify-between border-t border-gray-200 items-center mt-2">
-                <Text className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-              {creditOrders.length} pending credit {creditOrders.length === 1 ? 'order' : 'orders'}
+
+          {/* Owner */}
+          <View className="flex-row items-center space-x-2 mb-2">
+            <Text className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              Owner: {propName}
             </Text>
-                <Text className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                  Last: {lastOrder ? formatDate(lastOrder.orderDate) : 'Never'}
-                </Text>
-              </View>
+          </View>
+
+          {/* Credit & Pending */}
+          <View className="flex-row justify-between border-t border-b py-2 border-gray-200">
+            <View className="flex-row items-center space-x-1">
+              <Text className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Credit Limit: ₹{creditLimit?.toLocaleString('en-IN')}
+              </Text>
+            </View>
+            <View className="flex-row items-center space-x-1">
+              <Text className={`text-sm font-medium ${isDark ? 'text-red-400' : 'text-red-600'}`}>
+                Pending: ₹{pendingAmount.toLocaleString('en-IN')}
+              </Text>
             </View>
           </View>
 
+          <View className="flex-row gap-2 items-center mt-2 space-x-2">
+            <FontAwesome5 name="clock" size={14} color="#6B7280" />
+            <Text className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Last Order: ₹{lastOrderAmount.toLocaleString('en-IN')} on {formatDate(lastOrderDate)}
+            </Text>
+          </View>
 
         </View>
       </Pressable>
@@ -284,26 +259,21 @@ export default function Stores() {
   }, [outletOrders, isDark, router]);
 
   if (isLoading) {
-    return <Loader message="Loading stores..." />;
+    return <Loader message="Loading active stores..." />;
   }
 
   return (
     <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
       <View className={`px-4 py-3 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
-        <Text className={`text-2xl font-bold mb-4 ${
-          isDark ? 'text-white' : 'text-gray-900'
-        }`}>
+        <Text className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Stores
         </Text>
-
         <TextInput
           placeholder="Search stores..."
           placeholderTextColor={isDark ? '#888' : '#999'}
           value={searchText}
           onChangeText={handleSearch}
-          className={`border rounded-xl px-4 py-3 ${
-            isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
-          }`}
+          className={`border rounded-xl px-4 py-3 ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'}`}
         />
       </View>
 
@@ -313,21 +283,11 @@ export default function Stores() {
         data={filteredOutlets}
         keyExtractor={item => item.id}
         renderItem={renderOutlet}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={isDark ? '#ffffff' : '#000000'}
-          />
-        }
-        onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         ListEmptyComponent={
           <View className="items-center justify-center py-8">
-            <Text className={`text-base ${
-              isDark ? 'text-gray-400' : 'text-gray-600'
-            }`}>
-              No stores found
+            <Text className={`text-base ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              No active stores found
             </Text>
           </View>
         }
@@ -352,10 +312,7 @@ export default function Stores() {
       <Order
         visible={showOrderModal}
         onClose={() => setShowOrderModal(false)}
-        onOrderSaved={() => {
-          setShowOrderModal(false);
-          handleRefresh();
-        }}
+        onOrderSaved={() => setShowOrderModal(false)}
       />
     </View>
   );

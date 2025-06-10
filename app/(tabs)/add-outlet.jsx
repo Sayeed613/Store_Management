@@ -221,6 +221,7 @@ const AddOutlet = () => {
         address: fullAddress,
         location: formData.location,
         creditLimit: formData.creditLimit,
+        status: 'active',
         updatedAt: serverTimestamp(),
       };
 

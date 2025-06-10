@@ -115,95 +115,95 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
   }, [purchaseType]);
 
   const isValidOrderDate = (date) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  const orderDate = new Date(date);
-  orderDate.setHours(0, 0, 0, 0);
+    const orderDate = new Date(date);
+    orderDate.setHours(0, 0, 0, 0);
 
-  return orderDate <= today;
-};
+    return orderDate <= today;
+  };
 
-const handleSaveSale = async () => {
-  if (!selectedOutlet) {
-    Alert.alert('Error', 'Please select an outlet');
-    return;
-  }
-
-  if (!isValidOrderDate(orderDate)) {
-    Alert.alert('Error', 'Order date cannot be in the future');
-    return;
-  }
-
-  const saleAmount = purchaseType === 'Credit' ? Number(totalAmount) : Number(amount);
-  const paid = purchaseType === 'Credit' ? Number(paidAmount || 0) : saleAmount;
-  const balance = Math.max(0, saleAmount - paid);
-
-  if (isNaN(saleAmount) || saleAmount <= 0) {
-    Alert.alert('Error', 'Please enter a valid amount');
-    return;
-  }
-
-  if (purchaseType === 'Credit' && paid > saleAmount) {
-    Alert.alert('Error', 'Paid amount cannot be greater than total amount');
-    return;
-  }
-
-  setLoading(true);
-  try {
-    const initialPayment = paid > 0 ? [{
-      amount: paid,
-      date: orderDate,
-      paymentType: 'Cash',
-      notes: 'Initial payment'
-    }] : [];
-
-    const saleData = {
-      outletId: selectedOutlet.id,
-      storeName: selectedOutlet.storeName,
-      salesType,
-      purchaseType,
-      amount: saleAmount,
-      totalPaid: paid,
-      remainingBalance: balance,
-      status: balance === 0 ? 'Completed' : 'Pending',
-      customerName: customerName.trim(),
-      orderDate,
-      createdAt: serverTimestamp(),
-      payments: initialPayment
-    };
-
-    const saleRef = await addDoc(collection(db, 'sales'), saleData);
-
-    // Update outlet
-    const outletRef = doc(db, 'outlets', selectedOutlet.id);
-    await updateDoc(outletRef, {
-      lastOrderAmount: saleAmount,
-      lastOrderDate: orderDate,
-      lastOrderId: saleRef.id,
-      lastOrderType: purchaseType,
-      lastOrderStatus: balance === 0 ? 'Completed' : 'Pending',
-      lastSalesType: salesType,
-      totalOrders: increment(1),
-      totalAmount: increment(saleAmount),
-      pendingAmount: increment(balance),
-      updatedAt: serverTimestamp()
-    });
-
-    handleClose();
-
-    if (typeof onOrderSaved === 'function') {
-      onOrderSaved({ ...saleData, id: saleRef.id });
+  const handleSaveSale = async () => {
+    if (!selectedOutlet) {
+      Alert.alert('Error', 'Please select an outlet');
+      return;
     }
 
-    Alert.alert('Success', 'Order saved successfully');
-  } catch (error) {
-    console.error('Failed to save order:', error);
-    Alert.alert('Error', `Failed to save order: ${error.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
+    if (!isValidOrderDate(orderDate)) {
+      Alert.alert('Error', 'Order date cannot be in the future');
+      return;
+    }
+
+    const saleAmount = purchaseType === 'Credit' ? Number(totalAmount) : Number(amount);
+    const paid = purchaseType === 'Credit' ? Number(paidAmount || 0) : saleAmount;
+    const balance = Math.max(0, saleAmount - paid);
+
+    if (isNaN(saleAmount) || saleAmount <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
+    if (purchaseType === 'Credit' && paid > saleAmount) {
+      Alert.alert('Error', 'Paid amount cannot be greater than total amount');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const initialPayment = paid > 0 ? [{
+        amount: paid,
+        date: orderDate,
+        paymentType: 'Cash',
+        notes: 'Initial payment'
+      }] : [];
+
+      const saleData = {
+        outletId: selectedOutlet.id,
+        storeName: selectedOutlet.storeName,
+        salesType,
+        purchaseType,
+        amount: saleAmount,
+        totalPaid: paid,
+        remainingBalance: balance,
+        status: balance === 0 ? 'Completed' : 'Pending',
+        customerName: customerName.trim(),
+        orderDate,
+        createdAt: serverTimestamp(),
+        payments: initialPayment
+      };
+
+      const saleRef = await addDoc(collection(db, 'sales'), saleData);
+
+      // Update outlet
+      const outletRef = doc(db, 'outlets', selectedOutlet.id);
+      await updateDoc(outletRef, {
+        lastOrderAmount: saleAmount,
+        lastOrderDate: orderDate,
+        lastOrderId: saleRef.id,
+        lastOrderType: purchaseType,
+        lastOrderStatus: balance === 0 ? 'Completed' : 'Pending',
+        lastSalesType: salesType,
+        totalOrders: increment(1),
+        totalAmount: increment(saleAmount),
+        pendingAmount: increment(balance),
+        updatedAt: serverTimestamp()
+      });
+
+      handleClose();
+
+      if (typeof onOrderSaved === 'function') {
+        onOrderSaved({ ...saleData, id: saleRef.id });
+      }
+
+      Alert.alert('Success', 'Order saved successfully');
+    } catch (error) {
+      console.error('Failed to save order:', error);
+      Alert.alert('Error', `Failed to save order: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleClose = () => {
     setSearchText('');
@@ -285,16 +285,16 @@ const handleSaveSale = async () => {
                   >
                     {item.propName} • {item.phoneNumber}
                   </Text>
-                 <View className='flex-row justify-between items-center'>
-          <Text className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
-          {[item.street, item.route, item.locality]
-            .filter(Boolean)
-            .join(', ')}
-        </Text>
-        <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Credit Limit: ₹{item.creditLimit || 0}
-          </Text>
-        </View>
+                  <View className='flex-row justify-between items-center'>
+                    <Text className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                      {[item.street, item.route, item.locality]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </Text>
+                    <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Credit Limit: ₹{item.creditLimit || 0}
+                    </Text>
+                  </View>
 
                 </Pressable>
               )}
@@ -322,12 +322,12 @@ const handleSaveSale = async () => {
         </Text>
         <View className='flex-row justify-between items-center'>
           <Text className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
-          {[selectedOutlet.street, selectedOutlet.route, selectedOutlet.locality]
-            .filter(Boolean)
-            .join(', ')}
-        </Text>
-        <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Credit Limit: ₹{selectedOutlet.creditLimit || 0}
+            {[selectedOutlet.street, selectedOutlet.route, selectedOutlet.locality]
+              .filter(Boolean)
+              .join(', ')}
+          </Text>
+          <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            Credit Limit: ₹{selectedOutlet.creditLimit || 0}
           </Text>
         </View>
       </View>
@@ -438,8 +438,8 @@ const handleSaveSale = async () => {
                         onChangeText={setAmount}
                         keyboardType="numeric"
                         className={`border rounded-xl px-4 py-3 mt-4 ${isDark
-                            ? 'border-gray-700 bg-gray-800 text-white'
-                            : 'border-gray-300 bg-white text-gray-900'
+                          ? 'border-gray-700 bg-gray-800 text-white'
+                          : 'border-gray-300 bg-white text-gray-900'
                           }`}
                       />
                     ) : (
@@ -455,8 +455,8 @@ const handleSaveSale = async () => {
                           }}
                           keyboardType="numeric"
                           className={`border rounded-xl px-4 py-3 mt-4 ${isDark
-                              ? 'border-gray-700 bg-gray-800 text-white'
-                              : 'border-gray-300 bg-white text-gray-900'
+                            ? 'border-gray-700 bg-gray-800 text-white'
+                            : 'border-gray-300 bg-white text-gray-900'
                             }`}
                         />
                         <TextInput

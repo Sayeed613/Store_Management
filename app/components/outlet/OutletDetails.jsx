@@ -1,14 +1,17 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
-  collection, deleteDoc, doc, getDoc, getDocs,
-  limit, orderBy, query, serverTimestamp, updateDoc, where
+  collection, deleteDoc, doc,
+  getDocs,
+  onSnapshot,
+  orderBy, query, serverTimestamp, updateDoc, where
 } from 'firebase/firestore';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert, Animated, Linking, Pressable,
-  ScrollView,
-  Text, TextInput, View
+  ScrollView, Text, TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Modal from 'react-native-modal';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,23 +19,25 @@ import { ROUTES } from '../../constants/outlet.constants';
 import { useTheme } from '../../context/ThemeContextProvider';
 import { db } from '../../services/firebase/config';
 import SalesTrackingGraph from '../analytics/SalesTrackingGraph';
+import PinModal from '../Aunthentication/PinModal';
 import Loader from '../common/Loader';
 import { Select } from '../forms/Select';
 import TransactionList from '../transactions/TransactionList';
 
 export default function OutletDetail() {
-  // Hooks
   const params = useLocalSearchParams();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  // State management
   const [locationData, setLocationData] = useState(null);
   const [outletData, setOutletData] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [showGraphModal, setShowGraphModal] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinValues, setPinValues] = useState(['', '', '', '']);
+  const [isDeactivating, setIsDeactivating] = useState(false);
   const [editedData, setEditedData] = useState({
     storeName: '',
     propName: '',
@@ -45,6 +50,69 @@ export default function OutletDetail() {
 
   // Animation value
   const scrollY = useMemo(() => new Animated.Value(0), []);
+
+  // Real-time data subscriptions
+  useEffect(() => {
+    if (!params.id) return;
+
+    setLoading(true);
+
+    // Outlet listener
+    const outletUnsubscribe = onSnapshot(
+      doc(db, 'outlets', params.id),
+      (doc) => {
+        if (doc.exists()) {
+          const data = { id: doc.id, ...doc.data() };
+          setOutletData(data);
+          setEditedData({
+            storeName: data.storeName || '',
+            propName: data.propName || '',
+            phoneNumber: data.phoneNumber || '',
+            route: data.route || '',
+            street: data.street || '',
+            locality: data.locality || '',
+            landmark: data.landmark || '',
+          });
+          setLocationData(data.location || null);
+        }
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Outlet listener error:', error);
+        Alert.alert('Error', 'Failed to load outlet details');
+        setLoading(false);
+      }
+    );
+
+    // Transactions listener
+    const salesQuery = query(
+      collection(db, 'sales'),
+      where('outletId', '==', params.id),
+      orderBy('orderDate', 'desc')
+    );
+
+    const transactionsUnsubscribe = onSnapshot(
+      salesQuery,
+      (snapshot) => {
+        const sales = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          orderDate: doc.data().orderDate?.toDate() || new Date(doc.data().orderDate)
+        }));
+        setTransactions(sales);
+      },
+      (error) => {
+        console.error('Transactions listener error:', error);
+        Alert.alert('Error', 'Failed to load transactions');
+      }
+    );
+
+    // Cleanup subscriptions
+    return () => {
+      outletUnsubscribe();
+      transactionsUnsubscribe();
+    };
+  }, [params.id]);
 
   // Computed values
   const totals = useMemo(() => {
@@ -60,7 +128,6 @@ export default function OutletDetail() {
     }, { totalSales: 0, totalBalance: 0 });
   }, [transactions]);
 
-  // Handlers
   const handleCall = useCallback(() => {
     if (outletData?.phoneNumber) {
       Linking.openURL(`tel:${outletData.phoneNumber}`);
@@ -98,13 +165,7 @@ export default function OutletDetail() {
         ...editedData,
         updatedAt: serverTimestamp(),
       });
-
-      setOutletData(prev => ({
-        ...prev,
-        ...editedData,
-      }));
       setIsEditing(false);
-      Alert.alert('Success', 'Details updated successfully');
     } catch (error) {
       console.error('Update failed:', error);
       Alert.alert('Error', 'Failed to update details');
@@ -114,67 +175,50 @@ export default function OutletDetail() {
   const handleDeleteTransaction = useCallback(async (transactionId) => {
     try {
       await deleteDoc(doc(db, 'sales', transactionId));
-      setTransactions(prev => prev.filter(t => t.id !== transactionId));
       Alert.alert('Success', 'Transaction deleted successfully');
     } catch (error) {
       console.error('Delete failed:', error);
       Alert.alert('Error', 'Failed to delete transaction');
     }
   }, []);
+  // Add these functions after other handlers
 
-  // Data fetching
-  const fetchData = useCallback(async () => {
-    if (!params.id) return;
+const handlePinChange = (index, value) => {
+  const newPinValues = [...pinValues];
+  newPinValues[index] = value;
+  setPinValues(newPinValues);
 
-    try {
-      setLoading(true);
-      const outletRef = doc(db, 'outlets', params.id);
-      const salesRef = collection(db, 'sales');
+  if (index === 3 && value !== '') {
+    verifyPinAndDeactivate(newPinValues.join(''));
+  }
+};
 
-      const [outletSnap, transactionSnap] = await Promise.all([
-        getDoc(outletRef),
-        getDocs(query(
-          salesRef,
-          where('outletId', '==', params.id),
-          orderBy('orderDate', 'desc'),
-          limit(10)
-        ))
-      ]);
+const verifyPinAndDeactivate = async (enteredPin) => {
+  try {
+    const querySnapshot = await getDocs(collection(db, 'users'));
+    const adminUser = querySnapshot.docs[0]?.data();
 
-      if (outletSnap.exists()) {
-        const data = { id: outletSnap.id, ...outletSnap.data() };
-        setOutletData(data);
-        setEditedData({
-          storeName: data.storeName || '',
-          propName: data.propName || '',
-          phoneNumber: data.phoneNumber || '',
-          route: data.route || '',
-          street: data.street || '',
-          locality: data.locality || '',
-          landmark: data.landmark || '',
-        });
-        setLocationData(data.location || null);
-      }
-
-      const sales = transactionSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        orderDate: doc.data().orderDate?.toDate() || new Date(doc.data().orderDate)
-      }));
-      setTransactions(sales);
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-      Alert.alert('Error', 'Failed to load outlet details');
-    } finally {
-      setLoading(false);
+    if (adminUser?.pin.toString() === enteredPin) {
+      await updateDoc(doc(db, 'outlets', params.id), {
+        status: 'inactive',
+        deactivatedAt: serverTimestamp(),
+      });
+      Alert.alert('Success', 'Outlet has been deactivated');
+      setShowPinModal(false);
+      setPinValues(['', '', '', '']);
+      router.back();
+    } else {
+      Alert.alert('Error', 'Incorrect PIN');
+      setPinValues(['', '', '', '']);
     }
-  }, [params.id]);
+  } catch (error) {
+    console.error('Deactivation failed:', error);
+    Alert.alert('Error', 'Failed to deactivate outlet');
+  }
+};
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
-  // Render methods
+
   const renderEditableField = useCallback(({ label, value, onChange, props = {} }) => (
     <View className="mb-4">
       <Text className={`text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -298,12 +342,20 @@ export default function OutletDetail() {
         <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {outletData?.storeName}
         </Text>
+       <View className="flex-row">
         <Pressable
           onPress={() => setIsEditing(true)}
-          className={`p-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
+          className={`p-2 rounded-full mr-2 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
         >
           <MaterialIcons name="edit" size={20} color={isDark ? '#fff' : '#374151'} />
         </Pressable>
+        <Pressable
+          onPress={() => setShowPinModal(true)}
+          className="p-2 rounded-full bg-red-500"
+        >
+          <MaterialIcons name="delete" size={20} color="#fff" />
+        </Pressable>
+        </View>
       </View>
 
       <View className="space-y-4">
@@ -325,13 +377,12 @@ export default function OutletDetail() {
 
         {/* Address and Phone */}
         <View className="flex-row justify-between">
-          {/* Address Section */}
           <View className="flex-1 mr-4">
             <View className="flex-row items-center mb-1">
               <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Address</Text>
               <MaterialIcons
                 name="open-in-new"
-                size={16}
+                size={20}
                 color={isDark ? '#60a5fa' : '#2563eb'}
                 style={{ marginLeft: 6 }}
               />
@@ -428,6 +479,53 @@ export default function OutletDetail() {
     </View>
   ), [isDark, outletData, setIsEditing]);
 
+
+  // Add this before the final return statement
+
+const renderPinModal = () => (
+  <Modal
+    isVisible={showPinModal}
+    backdropOpacity={0.5}
+    animationIn="fadeIn"
+    animationOut="fadeOut"
+    useNativeDriver
+    hideModalContentWhileAnimating
+    onBackdropPress={() => {
+      setShowPinModal(false);
+      setPinValues(['', '', '', '']);
+    }}
+  >
+    <View className="flex-1 justify-center items-center">
+      <View className={`p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl min-w-[320px]`}>
+        <Text className={`text-xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Confirm Deactivation
+        </Text>
+        <Text className={`text-sm text-center mb-8 ${isDark ? 'text-red-400' : 'text-red-600'}`}>
+          Enter PIN to deactivate this outlet
+        </Text>
+
+        <PinModal
+          values={pinValues}
+          onChange={handlePinChange}
+          isDark={isDark}
+        />
+
+        <TouchableOpacity
+          onPress={() => {
+            setShowPinModal(false);
+            setPinValues(['', '', '', '']);
+          }}
+          className="mt-6"
+        >
+          <Text className={`text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            Cancel
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </Modal>
+);
+
   const renderGraphModal = () => (
     <Modal
       visible={showGraphModal}
@@ -505,6 +603,7 @@ export default function OutletDetail() {
         )}
       </Animated.ScrollView>
       {renderGraphModal()}
+      {renderPinModal()}
     </SafeAreaView>
   );
 }

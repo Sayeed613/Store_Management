@@ -2,7 +2,6 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
   collection,
-  getDocs,
   onSnapshot,
   orderBy,
   query
@@ -33,61 +32,77 @@ const OrderHistory = () => {
   const [selectedRange, setSelectedRange] = useState('thirtyDays');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
-  const [showInactive, setShowInactive] = useState(false);
-
 
   const dateRanges = getDateRanges();
 
   useEffect(() => {
-    setIsLoading(true);
+  setIsLoading(true);
 
-    const outletsRef = collection(db, 'outlets');
-    const ordersRef = collection(db, 'sales');
-    const ordersQuery = query(ordersRef, orderBy('orderDate', 'desc'));
+  const outletsRef = collection(db, 'outlets');
+  const ordersRef = collection(db, 'sales');
+  const ordersQuery = query(ordersRef, orderBy('orderDate', 'desc'));
 
-    let outletPhones = {};
+  let unsubscribeOrders = null;
 
-    getDocs(outletsRef).then((outletsSnap) => {
-      outletsSnap.docs.forEach((doc) => {
-        outletPhones[doc.id] = doc.data().phoneNumber;
-      });
+  const unsubscribeOutlets = onSnapshot(outletsRef, (outletsSnap) => {
+    const outletData = {};
 
-      const unsubscribe = onSnapshot(
-        ordersQuery,
-        (querySnapshot) => {
-          const ordersData = querySnapshot.docs
-            .filter(doc => !!doc.data().orderDate)
-            .map((doc) => {
-              const data = doc.data();
-              const orderDate = data.orderDate?.toDate?.()
-                || new Date(data.orderDate?.seconds * 1000);
-
-              return {
-                id: doc.id,
-                ...data,
-                orderDate,
-                phoneNumber: outletPhones[data.outletId] || null,
-                payments: data.payments || [],
-                totalPaid: data.totalPaid || 0,
-                remainingBalance:
-                  data.remainingBalance || (data.amount - (data.totalPaid || 0)),
-              };
-            });
-
-          setOrders(ordersData);
-          setIsLoading(false);
-          setIsRefreshing(false);
-        },
-        (error) => {
-          console.error('Error in real-time listener:', error);
-          setIsLoading(false);
-          setIsRefreshing(false);
-        }
-      );
-
-      return () => unsubscribe();
+    outletsSnap.docs.forEach((doc) => {
+      const data = doc.data();
+      if (data.status !== 'inactive') {
+        outletData[doc.id] = {
+          phoneNumber: data.phoneNumber,
+          storeName: data.storeName,
+          status: data.status || 'active'
+        };
+      }
     });
-  }, []);
+
+    if (unsubscribeOrders) unsubscribeOrders();
+
+    unsubscribeOrders = onSnapshot(
+      ordersQuery,
+      (querySnapshot) => {
+        const ordersData = querySnapshot.docs
+          .filter(doc => {
+            const data = doc.data();
+            return !!data.orderDate && outletData[data.outletId];
+          })
+          .map((doc) => {
+            const data = doc.data();
+            const orderDate = data.orderDate?.toDate?.() ||
+              new Date(data.orderDate?.seconds * 1000);
+
+            return {
+              id: doc.id,
+              ...data,
+              orderDate,
+              phoneNumber: outletData[data.outletId]?.phoneNumber || null,
+              storeName: outletData[data.outletId]?.storeName || data.storeName,
+              payments: data.payments || [],
+              totalPaid: data.totalPaid || 0,
+              remainingBalance: data.amount - (data.totalPaid || 0)
+            };
+          });
+
+        setOrders(ordersData);
+        setIsLoading(false);
+        setIsRefreshing(false);
+      },
+      (error) => {
+        console.error('Error in real-time listener:', error);
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    );
+  });
+
+  return () => {
+    unsubscribeOutlets();
+    if (unsubscribeOrders) unsubscribeOrders();
+  };
+}, []);
+
 
   const onRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -123,26 +138,6 @@ const OrderHistory = () => {
     }
   };
 
-  const renderFilterButtons = () => (
-  <View className="flex-row justify-between items-center mb-4">
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      {Object.keys(dateRanges).map(renderDateRangeButton)}
-    </ScrollView>
-    <Pressable
-      onPress={() => setShowInactive(!showInactive)}
-      className={`ml-2 px-4 py-2 rounded-full ${
-        showInactive
-          ? 'bg-gray-600'
-          : isDark ? 'bg-gray-800' : 'bg-gray-200'
-      }`}
-    >
-      <Text className={isDark ? 'text-gray-300' : 'text-gray-700'}>
-        {showInactive ? 'Show Active' : 'Show Inactive'}
-      </Text>
-    </Pressable>
-  </View>
-);
-
   const renderDateRangeButton = (rangeKey) => (
     <Pressable
       key={rangeKey}
@@ -168,7 +163,6 @@ const OrderHistory = () => {
   const renderOrderCard = (order) => {
     const totalPaid = order.totalPaid || 0;
     const remainingBalance = order.remainingBalance || (order.amount - totalPaid);
-    const lastPayment = order.payments?.[order.payments.length - 1];
 
     return (
       <Pressable
@@ -187,27 +181,39 @@ const OrderHistory = () => {
         <View className='flex flex-row gap-5 mt-2'>
           <View className='flex flex-col gap-1'>
             <Text className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Total</Text>
-            <Text className={`font-semibold ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>₹{totalPaid.toFixed(2)}</Text>
+            <Text className={`font-semibold ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
+              ₹{totalPaid.toFixed(2)}
+            </Text>
           </View>
           <View className='flex flex-col gap-1'>
             <Text className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Balance</Text>
-            <Text className={`font-semibold ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>₹{remainingBalance.toFixed(2)}</Text>
+            <Text className={`font-semibold ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
+              ₹{remainingBalance.toFixed(2)}
+            </Text>
           </View>
           <View className='flex-1 items-end'>
-            <Text className={`text-xs font-semibold ${order.status === 'Completed' ? 'text-green-800' : 'text-yellow-800'}`}>
+            <Text className={`text-xs font-semibold ${
+              order.status === 'Completed' ? 'text-green-800' : 'text-yellow-800'
+            }`}>
               {order.status}
             </Text>
           </View>
         </View>
         {order.phoneNumber && (
-          <View className={`flex-row justify-between items-center pt-3 mt-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+          <View className={`flex-row justify-between items-center pt-3 mt-3 border-t ${
+            isDark ? 'border-gray-700' : 'border-gray-200'
+          }`}>
             <View className="flex-row items-center">
               <MaterialIcons name="phone" size={18} color={isDark ? '#9ca3af' : '#4b5563'} />
-              <Text className={`ml-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{order.phoneNumber}</Text>
+              <Text className={`ml-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                {order.phoneNumber}
+              </Text>
             </View>
             <Pressable
               onPress={() => Linking.openURL(`tel:${order.phoneNumber}`)}
-              className={`flex-row items-center px-1 py-2 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'}`}
+              className={`flex-row items-center px-1 py-2 rounded-lg ${
+                isDark ? 'bg-blue-600' : 'bg-blue-500'
+              }`}
             >
               <MaterialIcons name="call" size={16} color="#fff" />
               <Text className="text-white font-medium ml-2">Call Now</Text>
@@ -222,8 +228,7 @@ const OrderHistory = () => {
     return <Loader message="Loading orders..." />;
   }
 
-const filteredOrders = filterOrdersByDateRange(orders, selectedRange);
-
+  const filteredOrders = filterOrdersByDateRange(orders, selectedRange);
 
   return (
     <>
@@ -239,7 +244,7 @@ const filteredOrders = filterOrdersByDateRange(orders, selectedRange);
       >
         <View className="p-4">
           <Text className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Order History
+            Active Sales History
           </Text>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
@@ -251,7 +256,7 @@ const filteredOrders = filterOrdersByDateRange(orders, selectedRange);
               <View className={`p-8 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} items-center`}>
                 <MaterialIcons name="receipt-long" size={48} color={isDark ? '#4b5563' : '#9ca3af'} />
                 <Text className={`mt-2 text-base ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  No orders found for this period
+                  No orders found from active stores
                 </Text>
               </View>
             ) : (
@@ -263,7 +268,7 @@ const filteredOrders = filterOrdersByDateRange(orders, selectedRange);
 
       <Pressable
         onPress={() => setShowOrderModal(true)}
-        className={`absolute bottom-8 left-1/2 -ml-12 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700`}
+        className="absolute bottom-8 left-1/2 -ml-12 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
         style={{
           transform: [{ translateX: -16 }],
           elevation: 5,

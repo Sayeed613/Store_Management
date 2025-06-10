@@ -22,6 +22,7 @@ export const FORM_INITIAL_STATE = {
   street: '',
   locality: '',
   landmark: '',
+  status: 'active',
   location: null,
   formattedAddress: '',
 };
