@@ -83,15 +83,38 @@ const Admin = () => {
     Keyboard.dismiss();
   };
 
-  const verifyPin = (enteredPin) => {
-    if (adminUser?.pin.toString() === enteredPin) {
+const verifyPin = async (enteredPin) => {
+  try {
+    const querySnapshot = await getDocs(collection(db, 'users'));
+    const users = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Check if any user's PIN matches
+    const matchingUser = users.find(user => user.pin === enteredPin);
+
+    if (matchingUser) {
       setIsAuthenticated(true);
+      // Set the matching user instead of the first user
+      setAdminUser(matchingUser);
       setPinValues(['', '', '', '']);
     } else {
       Alert.alert('Error', 'Incorrect PIN');
       setPinValues(['', '', '', '']);
     }
-  };
+  } catch (error) {
+    console.error('PIN verification failed:', error);
+    Alert.alert('Error', 'Failed to verify PIN');
+    setPinValues(['', '', '', '']);
+  }
+};
+
+// Remove or modify the fetchAdminUser function since we don't need it anymore
+useEffect(() => {
+  // We can remove this effect or use it for other initialization
+  setLoading(false);
+}, []);
 
 const adminFeatures = [
   {

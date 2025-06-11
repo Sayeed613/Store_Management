@@ -196,9 +196,15 @@ const handlePinChange = (index, value) => {
 const verifyPinAndDeactivate = async (enteredPin) => {
   try {
     const querySnapshot = await getDocs(collection(db, 'users'));
-    const adminUser = querySnapshot.docs[0]?.data();
+    const users = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
 
-    if (adminUser?.pin.toString() === enteredPin) {
+    // Check if any user's PIN matches
+    const matchingUser = users.find(user => user.pin === enteredPin);
+
+    if (matchingUser) {
       await updateDoc(doc(db, 'outlets', params.id), {
         status: 'inactive',
         deactivatedAt: serverTimestamp(),

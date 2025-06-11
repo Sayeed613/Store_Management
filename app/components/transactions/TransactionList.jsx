@@ -99,23 +99,29 @@ const TransactionItem = ({ transaction, isDark, onDelete, onAddPayment, index })
     : isDark ? 'border-l-4 border-red-400' : 'border-l-4 border-red-600';
 
   const verifyPinAndDelete = async (enteredPin) => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      const adminUser = querySnapshot.docs[0]?.data();
+  try {
+    const querySnapshot = await getDocs(collection(db, 'users'));
+    const users = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
 
-      if (adminUser?.pin.toString() === enteredPin) {
-        onDelete?.(transaction.id);
-        setShowPinModal(false);
-        setPinValues(['', '', '', '']);
-      } else {
-        Alert.alert('Error', 'Incorrect PIN');
-        setPinValues(['', '', '', '']);
-      }
-    } catch (error) {
-      console.error('PIN verification error:', error);
-      Alert.alert('Error', 'Failed to verify PIN');
+    // Check if any user's PIN matches
+    const matchingUser = users.find(user => user.pin === enteredPin);
+
+    if (matchingUser) {
+      onDelete?.(transaction.id);
+      setShowPinModal(false);
+      setPinValues(['', '', '', '']);
+    } else {
+      Alert.alert('Error', 'Incorrect PIN');
+      setPinValues(['', '', '', '']);
     }
-  };
+  } catch (error) {
+    console.error('PIN verification error:', error);
+    Alert.alert('Error', 'Failed to verify PIN');
+  }
+};
 
   const handlePinChange = (index, value) => {
     const newPinValues = [...pinValues];

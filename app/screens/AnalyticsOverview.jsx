@@ -21,7 +21,7 @@ const StatCard = ({ title, value, count, icon, color, isDark }) => (
       elevation: 3
     }}
   >
-    <View className="flex-row justify-between items-center mb-2">
+    <View className={`flex-row justify-between items-center mb-2 `}>
       <View className={`p-2 rounded-lg bg-opacity-20`} style={{ backgroundColor: `${color}20` }}>
         <MaterialCommunityIcons name={icon} size={24} color={color} />
       </View>
@@ -98,7 +98,7 @@ const AnalyticsOverview = () => {
   }
 
   return (
-    <SafeAreaView className="flex-1">
+<SafeAreaView className={`flex-1 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
       <ScrollView className="px-4" showsVerticalScrollIndicator={false}>
         <View className="py-4">
           <Text className={`text-2xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>

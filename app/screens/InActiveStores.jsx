@@ -1,24 +1,24 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
-    collection,
-    doc,
-    getDocs, // Add this
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp, // Add this
-    updateDoc,
-    where,
+  collection,
+  doc,
+  getDocs, // Add this
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp, // Add this
+  updateDoc,
+  where,
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    Modal,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  FlatList,
+  Modal,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PinModal from '../components/Aunthentication/PinModal';
@@ -66,29 +66,35 @@ const InActiveStores = () => {
     }
   };
 
-  const verifyPinAndActivate = async (enteredPin) => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      const adminUser = querySnapshot.docs[0]?.data();
+ const verifyPinAndActivate = async (enteredPin) => {
+  try {
+    const querySnapshot = await getDocs(collection(db, 'users'));
+    const users = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
 
-      if (adminUser?.pin.toString() === enteredPin) {
-        await updateDoc(doc(db, 'outlets', selectedOutlet.id), {
-          status: 'active',
-          reactivatedAt: serverTimestamp(),
-        });
-        Alert.alert('Success', 'Outlet has been reactivated');
-        setShowPinModal(false);
-        setPinValues(['', '', '', '']);
-        setSelectedOutlet(null);
-      } else {
-        Alert.alert('Error', 'Incorrect PIN');
-        setPinValues(['', '', '', '']);
-      }
-    } catch (error) {
-      console.error('Activation failed:', error);
-      Alert.alert('Error', 'Failed to activate outlet');
+    // Check if any user's PIN matches
+    const matchingUser = users.find(user => user.pin === enteredPin);
+
+    if (matchingUser) {
+      await updateDoc(doc(db, 'outlets', selectedOutlet.id), {
+        status: 'active',
+        reactivatedAt: serverTimestamp(),
+      });
+      Alert.alert('Success', 'Outlet has been reactivated');
+      setShowPinModal(false);
+      setPinValues(['', '', '', '']);
+      setSelectedOutlet(null);
+    } else {
+      Alert.alert('Error', 'Incorrect PIN');
+      setPinValues(['', '', '', '']);
     }
-  };
+  } catch (error) {
+    console.error('Activation failed:', error);
+    Alert.alert('Error', 'Failed to activate outlet');
+  }
+};
 
   const renderStoreCard = ({ item }) => (
     <View className={`m-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>

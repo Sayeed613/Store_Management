@@ -152,20 +152,19 @@ const Users = () => {
     }
   };
 
-  const handleAddUser = async (userData) => {
-    try {
-      await addDoc(collection(db, 'users'), {
-        name: userData.name,
-        pin: userData.pin,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      fetchUsers();
-    } catch (error) {
-      console.error('Error adding user:', error);
-      throw error;
-    }
-  };
+const handleAddUser = async (userData) => {
+  try {
+    await addDoc(collection(db, 'users'), {
+      name: userData.name,
+      pin: userData.pin,
+      createdAt: new Date()
+    });
+    fetchUsers();
+  } catch (error) {
+    console.error('Error adding user:', error);
+    throw error;
+  }
+};
 
   const handleResetPin = (user) => {
     setSelectedUser(user);
