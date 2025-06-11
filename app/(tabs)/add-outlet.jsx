@@ -21,8 +21,11 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
+  Text,
   View
 } from 'react-native';
+import Modal from 'react-native-modal';
+import PinModal from '../components/Aunthentication/PinModal';
 import { LoadingButton } from '../components/common/LoadingButton';
 import { FormField } from '../components/forms/FromField';
 import { Select } from '../components/forms/Select';
@@ -33,6 +36,7 @@ import { useTheme } from '../context/ThemeContextProvider';
 import { db } from '../services/firebase/config';
 
 const AddOutlet = () => {
+  // State and hooks initialization
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const router = useRouter();
@@ -46,7 +50,11 @@ const AddOutlet = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [routeOptions, setRouteOptions] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinValues, setPinValues] = useState(['', '', '', '']);
+  const [existingOutlet, setExistingOutlet] = useState(null);
 
+  // Load routes on mount
   useEffect(() => {
     const loadRoutes = async () => {
       try {
@@ -57,10 +65,10 @@ const AddOutlet = () => {
         Alert.alert('Error', 'Could not fetch route options');
       }
     };
-
     loadRoutes();
   }, []);
 
+  // Form handling functions
   const resetForm = useCallback(() => {
     setFormData(FORM_INITIAL_STATE);
     setLocationConfirmed(false);
@@ -73,6 +81,19 @@ const AddOutlet = () => {
   const updateFormField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setHasUnsavedChanges(true);
+  };
+
+  const handlePhoneChange = (text) => {
+    const cleaned = text.replace(/\D/g, '').slice(0, 10);
+    updateFormField('phoneNumber', cleaned);
+  };
+
+  const handleCreditLimitChange = (value) => {
+    const cleaned = value.replace(/[^0-9]/g, '');
+    updateFormField('creditLimit', cleaned);
+    if (params.outletId) {
+      debouncedCreditLimitUpdate(cleaned);
+    }
   };
 
   const debouncedCreditLimitUpdate = useCallback(
@@ -90,26 +111,7 @@ const AddOutlet = () => {
     [params.outletId]
   );
 
-  const handleCreditLimitChange = (value) => {
-    const cleaned = value.replace(/[^0-9]/g, '');
-    updateFormField('creditLimit', cleaned);
-    if (params.outletId) {
-      debouncedCreditLimitUpdate(cleaned);
-    }
-  };
-
-  const handlePhoneChange = (text) => {
-    const cleaned = text.replace(/\D/g, '').slice(0, 10);
-    updateFormField('phoneNumber', cleaned);
-  };
-
-  const phoneExists = async (numberWithPrefix) => {
-    const outletsRef = collection(db, 'outlets');
-    const q = query(outletsRef, where('phoneNumber', '==', numberWithPrefix));
-    const snapshot = await getDocs(q);
-    return !snapshot.empty;
-  };
-
+  // Location handling
   const handleLocationUpdate = useCallback(async (locationData) => {
     if (!locationData) return;
     setLocationLoading(true);
@@ -119,23 +121,12 @@ const AddOutlet = () => {
         longitude: locationData.longitude
       });
 
-      const formattedAddress = [
-        address.street,
-        address.city,
-        address.region
-      ].filter(Boolean).join(', ');
-
-      const updatedLocation = {
-        ...locationData,
-        address: formattedAddress
-      };
-
       setFormData(prev => ({
         ...prev,
-        location: updatedLocation,
-        formattedAddress: formattedAddress,
-        street: prev.street || address.street || '',
-        locality: prev.locality || address.city || ''
+        location: locationData,
+        street: address.street || prev.street || '',
+        locality: address.city || prev.locality || '',
+        formattedAddress: [address.street, address.city, address.region].filter(Boolean).join(', ')
       }));
 
       setLocationConfirmed(true);
@@ -151,44 +142,77 @@ const AddOutlet = () => {
     await AsyncStorage.setItem('outletFormData', JSON.stringify(formData));
     router.push({
       pathname: '/screens/MapScreen',
-      params: {
-        outletId: params.outletId || '',
-      }
+      params: { outletId: params.outletId || '' }
     });
   };
 
-  const handleCancel = () => {
-    if (hasUnsavedChanges) {
-      Alert.alert(
-        'Discard Changes',
-        'You have unsaved changes. What would you like to do?',
-        [
-          {
-            text: 'Save Draft',
-            onPress: async () => {
-              await AsyncStorage.setItem('outletFormData', JSON.stringify(formData));
-              router.replace('/(tabs)');
-            },
-          },
-          {
-            text: 'Discard',
-            style: 'destructive',
-            onPress: () => {
-              resetForm();
-              router.replace('/(tabs)');
-            },
-          },
-          {
-            text: 'Continue Editing',
-            style: 'cancel',
-          },
-        ]
-      );
-    } else {
-      router.replace('/(tabs)');
+  // Phone number verification
+  const phoneExists = async (numberWithPrefix) => {
+    const outletsRef = collection(db, 'outlets');
+    const q = query(outletsRef, where('phoneNumber', '==', numberWithPrefix));
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      return {
+        exists: true,
+        outlet: { id: snapshot.docs[0].id, ...snapshot.docs[0].data() }
+      };
+    }
+    return { exists: false, outlet: null };
+  };
+
+  // PIN verification and outlet activation
+  const verifyPinAndActivate = async (enteredPin) => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'users'));
+      const users = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      const matchingUser = users.find(user => user.pin === enteredPin);
+
+      if (matchingUser) {
+        const outletData = {
+          propName: `${formData.firstName} ${formData.lastName}`.trim(),
+          phoneNumber: `+91${formData.phoneNumber}`,
+          storeName: formData.storeName,
+          route: formData.route,
+          street: formData.street || '',
+          locality: formData.locality || '',
+          landmark: formData.landmark || '',
+          address: [formData.street, formData.locality, formData.landmark].filter(Boolean).join(', '),
+          location: formData.location,
+          creditLimit: formData.creditLimit || '0',
+          status: 'active',
+          updatedAt: serverTimestamp(),
+          reactivatedBy: matchingUser.id,
+          reactivatedAt: serverTimestamp()
+        };
+
+        // Remove any undefined values
+        Object.keys(outletData).forEach(key =>
+          outletData[key] === undefined && delete outletData[key]
+        );
+
+        await updateDoc(doc(db, 'outlets', existingOutlet.id), outletData);
+        Alert.alert('Success', 'Outlet has been reactivated');
+        setShowPinModal(false);
+        setPinValues(['', '', '', '']);
+        setExistingOutlet(null);
+        resetForm();
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert('Error', 'Incorrect PIN');
+        setPinValues(['', '', '', '']);
+      }
+    } catch (error) {
+      console.error('PIN verification failed:', error);
+      Alert.alert('Error', 'Failed to verify PIN');
+      setPinValues(['', '', '', '']);
     }
   };
 
+  // Form submission
   const handleSubmit = async () => {
     const fullPhoneNumber = formData.phoneNumber ? `+91${formData.phoneNumber}` : '';
 
@@ -199,16 +223,40 @@ const AddOutlet = () => {
 
     setSaveLoading(true);
     try {
-      if (!params.outletId && await phoneExists(fullPhoneNumber)) {
-        Alert.alert('Duplicate Entry', 'An outlet with this phone number already exists.');
-        return;
+      if (!params.outletId) {
+        const { exists, outlet } = await phoneExists(fullPhoneNumber);
+        if (exists) {
+          if (outlet.status === 'inactive') {
+            setExistingOutlet(outlet);
+            Alert.alert(
+              'Inactive Outlet Found',
+              'This outlet exists but is inactive. Would you like to reactivate it?',
+              [
+                {
+                  text: 'Cancel',
+                  style: 'cancel',
+                  onPress: () => {
+                    setSaveLoading(false);
+                    setExistingOutlet(null);
+                  }
+                },
+                {
+                  text: 'Reactivate',
+                  onPress: () => {
+                    setSaveLoading(false);
+                    setShowPinModal(true);
+                  }
+                }
+              ]
+            );
+            return;
+          } else {
+            Alert.alert('Duplicate Entry', 'An active outlet with this phone number already exists.');
+            setSaveLoading(false);
+            return;
+          }
+        }
       }
-
-      const fullAddress = [
-        formData.street,
-        formData.locality,
-        formData.landmark,
-      ].filter(Boolean).join(', ');
 
       const outletData = {
         propName: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -218,11 +266,11 @@ const AddOutlet = () => {
         street: formData.street,
         locality: formData.locality,
         landmark: formData.landmark,
-        address: fullAddress,
+        address: [formData.street, formData.locality, formData.landmark].filter(Boolean).join(', '),
         location: formData.location,
         creditLimit: formData.creditLimit,
         status: 'active',
-        updatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       };
 
       if (params.outletId) {
@@ -231,21 +279,22 @@ const AddOutlet = () => {
       } else {
         await addDoc(collection(db, 'outlets'), {
           ...outletData,
-          createdAt: serverTimestamp(),
+          createdAt: serverTimestamp()
         });
         Alert.alert('Success', 'Outlet added successfully');
         resetForm();
       }
 
       router.replace('/(tabs)');
-    } catch (err) {
-      console.error('Error:', err);
-      Alert.alert('Error', 'Failed to save outlet. Please try again.');
+    } catch (error) {
+      console.error('Error:', error);
+      Alert.alert('Error', 'Failed to save outlet');
     } finally {
       setSaveLoading(false);
     }
   };
 
+  // Refresh handling
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -263,6 +312,30 @@ const AddOutlet = () => {
     }
   }, []);
 
+  // Navigation handling
+  const handleCancel = () => {
+    if (hasUnsavedChanges) {
+      Alert.alert(
+        'Unsaved Changes',
+        'You have unsaved changes. Are you sure you want to leave?',
+        [
+          { text: 'Stay', style: 'cancel' },
+          {
+            text: 'Leave',
+            style: 'destructive',
+            onPress: () => {
+              resetForm();
+              router.back();
+            }
+          }
+        ]
+      );
+    } else {
+      router.back();
+    }
+  };
+
+  // Effects for data persistence and back handling
   useFocusEffect(
     useCallback(() => {
       const checkLocation = async () => {
@@ -274,13 +347,6 @@ const AddOutlet = () => {
           } catch (error) {
             console.error('Failed to parse location:', error);
           }
-        }
-
-        const saved = await AsyncStorage.getItem('outletFormData');
-        if (saved) {
-          const data = JSON.parse(saved);
-          setFormData(data);
-          if (data.location) setLocationConfirmed(true);
         }
       };
       checkLocation();
@@ -312,33 +378,54 @@ const AddOutlet = () => {
         return false;
       }
     );
-
     return () => subscription.remove();
   }, [hasUnsavedChanges]);
 
+  // Render
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-      <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
+      <View className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <ScrollView
+          className="flex-1"
           contentContainerStyle={{ padding: 16 }}
           keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={isDark ? '#ffffff' : '#000000'}
+              tintColor={isDark ? '#60A5FA' : '#2563EB'}
             />
           }
         >
-          <FormField label="Store Name *" value={formData.storeName} onChangeText={(val) => updateFormField('storeName', val)} required placeholder="Enter store name" />
+          {/* Form Fields */}
+          <FormField
+            label="Store Name *"
+            value={formData.storeName}
+            onChangeText={(val) => updateFormField('storeName', val)}
+            required
+            placeholder="Enter store name"
+          />
+
           <View className="flex-row gap-2 mb-2">
             <View className="flex-1">
-              <FormField label="First Name *" value={formData.firstName} onChangeText={(val) => updateFormField('firstName', val)} required placeholder="First name" />
+              <FormField
+                label="First Name *"
+                value={formData.firstName}
+                onChangeText={(val) => updateFormField('firstName', val)}
+                required
+                placeholder="First name"
+              />
             </View>
             <View className="flex-1">
-              <FormField label="Last Name" value={formData.lastName} onChangeText={(val) => updateFormField('lastName', val)} placeholder="Last name" />
+              <FormField
+                label="Last Name"
+                value={formData.lastName}
+                onChangeText={(val) => updateFormField('lastName', val)}
+                placeholder="Last name"
+              />
             </View>
           </View>
+
           <FormField
             label="Phone Number *"
             value={formData.phoneNumber}
@@ -348,22 +435,46 @@ const AddOutlet = () => {
             maxLength={10}
             required
           />
+
           <View className="flex-row gap-2 mb-2">
             <View className="flex-1">
-              <Select label="Route *" value={formData.route} options={routeOptions} onChange={(val) => updateFormField('route', val)} required />
+              <Select
+                label="Route *"
+                value={formData.route}
+                options={routeOptions}
+                onChange={(val) => updateFormField('route', val)}
+                required
+              />
             </View>
             <View className="flex-1">
-              <FormField label="Street" value={formData.street} onChangeText={(val) => updateFormField('street', val)} placeholder="Street" />
+              <FormField
+                label="Street"
+                value={formData.street}
+                onChangeText={(val) => updateFormField('street', val)}
+                placeholder="Street"
+              />
             </View>
           </View>
+
           <View className="flex-row gap-2 mb-2">
             <View className="flex-1">
-              <FormField label="Locality" value={formData.locality} onChangeText={(val) => updateFormField('locality', val)} placeholder="Locality" />
+              <FormField
+                label="Locality"
+                value={formData.locality}
+                onChangeText={(val) => updateFormField('locality', val)}
+                placeholder="Locality"
+              />
             </View>
             <View className="flex-1">
-              <FormField label="Landmark" value={formData.landmark} onChangeText={(val) => updateFormField('landmark', val)} placeholder="Landmark" />
+              <FormField
+                label="Landmark"
+                value={formData.landmark}
+                onChangeText={(val) => updateFormField('landmark', val)}
+                placeholder="Landmark"
+              />
             </View>
           </View>
+
           <FormField
             label="Credit Limit *"
             value={formData.creditLimit}
@@ -375,7 +486,14 @@ const AddOutlet = () => {
 
           {formData.location && locationConfirmed && (
             <View className="mb-4">
-              <MapPreview location={{ ...formData.location, address: formData.formattedAddress }} height={200} showAddress />
+              <MapPreview
+                location={{
+                  ...formData.location,
+                  address: formData.formattedAddress
+                }}
+                height={200}
+                showAddress
+              />
             </View>
           )}
 
@@ -388,12 +506,19 @@ const AddOutlet = () => {
               disabled={locationLoading}
               className="w-full"
             />
+
             <View className="flex-row gap-4 mt-3">
-              <LoadingButton text="Cancel" onPress={handleCancel} variant="secondary" className="flex-1 w-full" />
               <LoadingButton
-                text={params.outletId ? 'Update Outlet' : 'Save Outlet'}
+                text="Cancel"
+                onPress={handleCancel}
+                variant="secondary"
+                className="flex-1"
+              />
+              <LoadingButton
+                text={params.outletId ? 'Update' : 'Save'}
                 loading={saveLoading}
                 onPress={handleSubmit}
+                className="flex-1"
                 disabled={
                   !formData.storeName ||
                   !formData.phoneNumber ||
@@ -401,12 +526,68 @@ const AddOutlet = () => {
                   !formData.route ||
                   locationLoading
                 }
-                className="flex-1 w-full"
               />
             </View>
           </View>
         </ScrollView>
       </View>
+      <Modal
+        isVisible={showPinModal}
+        backdropOpacity={0.5}
+        animationIn="fadeIn"
+        animationOut="fadeOut"
+        useNativeDriver
+        hideModalContentWhileAnimating
+        style={{ margin: 0 }}
+        statusBarTranslucent
+        onBackdropPress={() => {
+          setShowPinModal(false);
+          setPinValues(['', '', '', '']);
+          setExistingOutlet(null);
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          className="flex-1"
+        >
+          <View className="flex-1 justify-center items-center px-4">
+            <View
+              className={`p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl w-full max-w-[320px]`}
+            >
+              <View className="mb-6">
+                <Text
+                  className={`text-xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-gray-900'
+                    }`}
+                >
+                  Enter PIN to Reactivate
+                </Text>
+                <Text
+                  className={`text-center ${isDark ? 'text-gray-400' : 'text-gray-600'
+                    }`}
+                >
+                  Please enter your PIN to reactivate this outlet
+                </Text>
+              </View>
+
+              <View className="items-center">
+                <PinModal
+                  values={pinValues}
+                  onChange={(index, value) => {
+                    const newPinValues = [...pinValues];
+                    newPinValues[index] = value;
+                    setPinValues(newPinValues);
+
+                    if (index === 3 && value !== '') {
+                      verifyPinAndActivate(newPinValues.join(''));
+                    }
+                  }}
+                  isDark={isDark}
+                />
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };

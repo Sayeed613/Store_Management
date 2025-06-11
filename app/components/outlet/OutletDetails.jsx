@@ -114,19 +114,23 @@ export default function OutletDetail() {
     };
   }, [params.id]);
 
-  // Computed values
-  const totals = useMemo(() => {
-    return transactions.reduce((acc, transaction) => {
-      const amount = Number(transaction.amount) || 0;
-      const totalPaid = transaction.payments?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) || 0;
-      const remaining = amount - totalPaid;
+const totals = useMemo(() => {
+  return transactions.reduce((acc, transaction) => {
+    const amount = Number(transaction.amount) || 0;
+    const totalPaid = transaction.payments?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) || 0;
+    const remaining = amount - totalPaid;
 
-      return {
-        totalSales: acc.totalSales + amount,
-        totalBalance: acc.totalBalance + (remaining > 0 ? remaining : 0)
-      };
-    }, { totalSales: 0, totalBalance: 0 });
-  }, [transactions]);
+    return {
+      totalSales: acc.totalSales + amount,
+      totalBalance: acc.totalBalance + (remaining > 0 ? remaining : 0),
+      creditLimit: outletData?.creditLimit || 0
+    };
+  }, {
+    totalSales: 0,
+    totalBalance: 0,
+    creditLimit: outletData?.creditLimit || 0
+  });
+}, [transactions, outletData?.creditLimit]);
 
   const handleCall = useCallback(() => {
     if (outletData?.phoneNumber) {
@@ -196,15 +200,9 @@ const handlePinChange = (index, value) => {
 const verifyPinAndDeactivate = async (enteredPin) => {
   try {
     const querySnapshot = await getDocs(collection(db, 'users'));
-    const users = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const adminUser = querySnapshot.docs[0]?.data();
 
-    // Check if any user's PIN matches
-    const matchingUser = users.find(user => user.pin === enteredPin);
-
-    if (matchingUser) {
+    if (adminUser?.pin.toString() === enteredPin) {
       await updateDoc(doc(db, 'outlets', params.id), {
         status: 'inactive',
         deactivatedAt: serverTimestamp(),
@@ -381,6 +379,7 @@ const verifyPinAndDeactivate = async (enteredPin) => {
           </View>
         </View>
 
+
         {/* Address and Phone */}
         <View className="flex-row justify-between">
           <View className="flex-1 mr-4">
@@ -441,7 +440,7 @@ const verifyPinAndDeactivate = async (enteredPin) => {
 
 
         {/* Sales and Balance Cards */}
-        <View className="flex-row mt-2 justify-between">
+        <View className="flex-row mt- justify-between">
           <View className="flex-1 mr-2 p-3 rounded-xl bg-green-100">
             <Text className="text-xs text-green-800">Total Sales</Text>
             <Text className="text-sm font-bold text-green-800">
@@ -461,6 +460,17 @@ const verifyPinAndDeactivate = async (enteredPin) => {
             </Text>
           </View>
         </View>
+         <View className='mt-2'>
+          <View className="bg-blue-100 p-3 rounded-xl">
+        <Text className="text-xs text-blue-800">Credit Limit</Text>
+        <Text className="text-sm font-bold text-blue-800">
+          ₹{totals.creditLimit.toLocaleString('en-IN', {
+            maximumFractionDigits: 2,
+            minimumFractionDigits: 2
+          })}
+        </Text>
+      </View>
+         </View>
 
         {/* View Sales Analytics Button */}
         <View className="pt-4 ">
@@ -483,7 +493,7 @@ const verifyPinAndDeactivate = async (enteredPin) => {
         </View>
       </View>
     </View>
-  ), [isDark, outletData, setIsEditing]);
+  ), [isDark, outletData,totals,  setIsEditing]);
 
 
   // Add this before the final return statement

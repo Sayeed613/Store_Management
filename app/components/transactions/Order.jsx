@@ -1,6 +1,16 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import { addDoc, collection, doc, getDocs, increment, serverTimestamp, updateDoc } from 'firebase/firestore';
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  increment,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where
+} from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -26,6 +36,7 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
+  // State management
   const [customerName, setCustomerName] = useState('');
   const [salesType, setSalesType] = useState(salesTypes[0]);
   const [purchaseType, setPurchaseType] = useState(purchaseTypes[0]);
@@ -44,11 +55,13 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
   const [totalAmount, setTotalAmount] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
 
+  // Fetch only active outlets
   useEffect(() => {
     const fetchOutlets = async () => {
       try {
         const outletsRef = collection(db, 'outlets');
-        const snapshot = await getDocs(outletsRef);
+        const q = query(outletsRef, where('status', '==', 'active'));
+        const snapshot = await getDocs(q);
         const outletList = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
@@ -62,21 +75,7 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     fetchOutlets();
   }, []);
 
-  useEffect(() => {
-    const params = router.params;
-    if (params?.preselectedOutlet) {
-      try {
-        const preselectedOutlet = JSON.parse(params.preselectedOutlet);
-        setSelectedOutlet(preselectedOutlet);
-        setSearchText(preselectedOutlet.storeName);
-        setCustomerName(preselectedOutlet.propName || '');
-        setShowSuggestions(false);
-      } catch (error) {
-        console.error('Failed to parse preselected outlet:', error);
-      }
-    }
-  }, [router.params]);
-
+  // Search functionality
   useEffect(() => {
     if (!searchText.trim()) {
       setFilteredOutlets([]);
@@ -85,23 +84,35 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     }
 
     const lowerSearchText = searchText.toLowerCase();
-    const filtered = outlets.filter(outlet =>
+    const filtered = outlets.filter(outlet => (
       outlet.storeName?.toLowerCase().includes(lowerSearchText) ||
       outlet.phoneNumber?.includes(lowerSearchText) ||
       outlet.propName?.toLowerCase().includes(lowerSearchText)
-    );
+    ));
 
     setFilteredOutlets(filtered);
     setShowSuggestions(filtered.length > 0);
   }, [searchText, outlets]);
 
-  const handleSelectOutlet = (outlet) => {
-    setSelectedOutlet(outlet);
-    setSearchText(outlet.storeName);
-    setCustomerName(outlet.propName || '');
-    setShowSuggestions(false);
-  };
+  // Handle preselected outlet
+  useEffect(() => {
+    const params = router.params;
+    if (params?.preselectedOutlet) {
+      try {
+        const preselectedOutlet = JSON.parse(params.preselectedOutlet);
+        if (preselectedOutlet.status === 'active') {
+          setSelectedOutlet(preselectedOutlet);
+          setSearchText(preselectedOutlet.storeName);
+          setCustomerName(preselectedOutlet.propName || '');
+          setShowSuggestions(false);
+        }
+      } catch (error) {
+        console.error('Failed to parse preselected outlet:', error);
+      }
+    }
+  }, [router.params]);
 
+  // Purchase type effects
   useEffect(() => {
     if (purchaseType === 'Cash') {
       setAmount(totalAmount || '');
@@ -114,16 +125,27 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     }
   }, [purchaseType]);
 
+  // Helper functions
+  const handleSelectOutlet = (outlet) => {
+    if (outlet.status !== 'active') {
+      Alert.alert('Error', 'This outlet is inactive');
+      return;
+    }
+    setSelectedOutlet(outlet);
+    setSearchText(outlet.storeName);
+    setCustomerName(outlet.propName || '');
+    setShowSuggestions(false);
+  };
+
   const isValidOrderDate = (date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
     const orderDate = new Date(date);
     orderDate.setHours(0, 0, 0, 0);
-
     return orderDate <= today;
   };
 
+  // Form submission
   const handleSaveSale = async () => {
     if (!selectedOutlet) {
       Alert.alert('Error', 'Please select an outlet');
@@ -175,9 +197,7 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
 
       const saleRef = await addDoc(collection(db, 'sales'), saleData);
 
-      // Update outlet
-      const outletRef = doc(db, 'outlets', selectedOutlet.id);
-      await updateDoc(outletRef, {
+      await updateDoc(doc(db, 'outlets', selectedOutlet.id), {
         lastOrderAmount: saleAmount,
         lastOrderDate: orderDate,
         lastOrderId: saleRef.id,
@@ -191,11 +211,9 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
       });
 
       handleClose();
-
       if (typeof onOrderSaved === 'function') {
         onOrderSaved({ ...saleData, id: saleRef.id });
       }
-
       Alert.alert('Success', 'Order saved successfully');
     } catch (error) {
       console.error('Failed to save order:', error);
@@ -219,46 +237,48 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     onClose?.();
   };
 
-
   const renderSearchBar = () => (
-    <View className="relative z-20">
-      <TextInput
-        placeholder="Search outlet"
-        placeholderTextColor={isDark ? '#888' : '#999'}
-        value={searchText}
-        onChangeText={text => {
-          setSearchText(text);
-          if (selectedOutlet) {
-            setSelectedOutlet(null);
-          }
-        }}
-        onFocus={() => {
-          setShowSuggestions(true);
-          if (selectedOutlet) {
-            setSelectedOutlet(null);
-            setSearchText('');
-          }
-        }}
-        className={`border rounded-xl px-4 py-3 ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
-          }`}
-      />
+  <View className="relative z-20">
+    <TextInput
+      placeholder="Search outlet"
+      placeholderTextColor={isDark ? '#888' : '#999'}
+      value={searchText}
+      onChangeText={text => {
+        setSearchText(text);
+        if (selectedOutlet) {
+          setSelectedOutlet(null);
+        }
+      }}
+      onFocus={() => {
+        setShowSuggestions(true);
+        if (selectedOutlet) {
+          setSelectedOutlet(null);
+          setSearchText('');
+        }
+      }}
+      className={`border rounded-xl px-4 py-3 ${
+        isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
+      }`}
+    />
 
-      {showSuggestions && filteredOutlets.length > 0 && (
+    {showSuggestions && (
+      <View
+        className="absolute top-full left-0 right-0 mt-1 z-30"
+        style={{
+          maxHeight: 300,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 3.84,
+          elevation: 5,
+        }}
+      >
         <View
-          className="absolute top-full left-0 right-0 mt-1 z-30"
-          style={{
-            maxHeight: 100,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 3.84,
-            elevation: 5,
-          }}
-        >
-          <View
-            className={`border rounded-xl overflow-hidden ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
-              }`}
+          className={`border rounded-xl overflow-hidden ${
+            isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
+          }`}
           >
+          {filteredOutlets.length > 0 ? (
             <FlatList
               data={filteredOutlets}
               keyExtractor={item => item.id}
@@ -270,40 +290,55 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
               renderItem={({ item }) => (
                 <Pressable
                   onPress={() => handleSelectOutlet(item)}
-                  className={`px-4 py-3 border-b ${isDark ? 'border-gray-700 active:bg-gray-700' : 'border-gray-200 active:bg-gray-100'
-                    }`}
+                  className={`px-4 py-3 border-b ${
+                    isDark ? 'border-gray-700 active:bg-gray-700' : 'border-gray-200 active:bg-gray-100'
+                  }`}
                 >
                   <Text
-                    className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'
-                      }`}
+                    className={`font-semibold ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}
                   >
                     {item.storeName}
                   </Text>
                   <Text
-                    className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'
-                      }`}
-                  >
-                    {item.propName} • {item.phoneNumber}
+                    className={`text-sm mt-1 ${
+                      isDark ? 'text-gray-400' : 'text-gray-600'
+                    }`}
+                  >{item.propName} • {item.phoneNumber}
                   </Text>
                   <View className='flex-row justify-between items-center'>
-                    <Text className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                    <Text className={`text-xs mt-1 ${
+                      isDark ? 'text-gray-500' : 'text-gray-600'
+                    }`}>
                       {[item.street, item.route, item.locality]
                         .filter(Boolean)
                         .join(', ')}
                     </Text>
-                    <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <Text className={`text-sm ${
+                      isDark ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
                       Credit Limit: ₹{item.creditLimit || 0}
                     </Text>
                   </View>
-
                 </Pressable>
               )}
             />
-          </View>
+          ) : (
+            <View className="p-4 items-center">
+              <Text className={`text-sm ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                No active outlets found
+              </Text>
+            </View>
+          )}
         </View>
-      )}
-    </View>
-  );
+      </View>
+    )}
+  </View>
+  )
+
   const renderSelectedOutlet = () => (
     <Pressable
       onPress={() => {
