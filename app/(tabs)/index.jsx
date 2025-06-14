@@ -36,72 +36,72 @@ const OrderHistory = () => {
   const dateRanges = getDateRanges();
 
   useEffect(() => {
-  setIsLoading(true);
+    setIsLoading(true);
 
-  const outletsRef = collection(db, 'outlets');
-  const ordersRef = collection(db, 'sales');
-  const ordersQuery = query(ordersRef, orderBy('orderDate', 'desc'));
+    const outletsRef = collection(db, 'outlets');
+    const ordersRef = collection(db, 'sales');
+    const ordersQuery = query(ordersRef, orderBy('orderDate', 'desc'));
 
-  let unsubscribeOrders = null;
+    let unsubscribeOrders = null;
 
-  const unsubscribeOutlets = onSnapshot(outletsRef, (outletsSnap) => {
-    const outletData = {};
+    const unsubscribeOutlets = onSnapshot(outletsRef, (outletsSnap) => {
+      const outletData = {};
 
-    outletsSnap.docs.forEach((doc) => {
-      const data = doc.data();
-      if (data.status !== 'inactive') {
-        outletData[doc.id] = {
-          phoneNumber: data.phoneNumber,
-          storeName: data.storeName,
-          status: data.status || 'active'
-        };
-      }
+      outletsSnap.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.status !== 'inactive') {
+          outletData[doc.id] = {
+            phoneNumber: data.phoneNumber,
+            storeName: data.storeName,
+            status: data.status || 'active'
+          };
+        }
+      });
+
+      if (unsubscribeOrders) unsubscribeOrders();
+
+      unsubscribeOrders = onSnapshot(
+        ordersQuery,
+        (querySnapshot) => {
+          const ordersData = querySnapshot.docs
+            .filter(doc => {
+              const data = doc.data();
+              return !!data.orderDate && outletData[data.outletId];
+            })
+            .map((doc) => {
+              const data = doc.data();
+              const orderDate = data.orderDate?.toDate?.() ||
+                new Date(data.orderDate?.seconds * 1000);
+
+              return {
+                id: doc.id,
+                ...data,
+                orderDate,
+                phoneNumber: outletData[data.outletId]?.phoneNumber || null,
+                storeName: outletData[data.outletId]?.storeName || data.storeName,
+                payments: data.payments || [],
+                totalPaid: data.totalPaid || 0,
+                remainingBalance: data.amount - (data.totalPaid || 0)
+              };
+            });
+
+          setOrders(ordersData);
+          setIsLoading(false);
+          setIsRefreshing(false);
+        },
+        (error) => {
+          console.error('Error in real-time listener:', error);
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
+      );
     });
 
-    if (unsubscribeOrders) unsubscribeOrders();
-
-    unsubscribeOrders = onSnapshot(
-      ordersQuery,
-      (querySnapshot) => {
-        const ordersData = querySnapshot.docs
-          .filter(doc => {
-            const data = doc.data();
-            return !!data.orderDate && outletData[data.outletId];
-          })
-          .map((doc) => {
-            const data = doc.data();
-            const orderDate = data.orderDate?.toDate?.() ||
-              new Date(data.orderDate?.seconds * 1000);
-
-            return {
-              id: doc.id,
-              ...data,
-              orderDate,
-              phoneNumber: outletData[data.outletId]?.phoneNumber || null,
-              storeName: outletData[data.outletId]?.storeName || data.storeName,
-              payments: data.payments || [],
-              totalPaid: data.totalPaid || 0,
-              remainingBalance: data.amount - (data.totalPaid || 0)
-            };
-          });
-
-        setOrders(ordersData);
-        setIsLoading(false);
-        setIsRefreshing(false);
-      },
-      (error) => {
-        console.error('Error in real-time listener:', error);
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
-    );
-  });
-
-  return () => {
-    unsubscribeOutlets();
-    if (unsubscribeOrders) unsubscribeOrders();
-  };
-}, []);
+    return () => {
+      unsubscribeOutlets();
+      if (unsubscribeOrders) unsubscribeOrders();
+    };
+  }, []);
 
 
   const onRefresh = useCallback(() => {
@@ -142,18 +142,16 @@ const OrderHistory = () => {
     <Pressable
       key={rangeKey}
       onPress={() => setSelectedRange(rangeKey)}
-      className={`px-6 py-3 rounded-full mr-2 ${
-        selectedRange === rangeKey
+      className={`px-6 py-3 rounded-full mr-2 ${selectedRange === rangeKey
           ? 'bg-blue-600'
           : isDark ? 'bg-gray-800' : 'bg-gray-200'
-      }`}
+        }`}
     >
       <Text
-        className={`${
-          selectedRange === rangeKey
+        className={`${selectedRange === rangeKey
             ? 'text-white font-bold'
             : isDark ? 'text-gray-300' : 'text-gray-700'
-        }`}
+          }`}
       >
         {dateRanges[rangeKey].label}
       </Text>
@@ -192,17 +190,15 @@ const OrderHistory = () => {
             </Text>
           </View>
           <View className='flex-1 items-end'>
-            <Text className={`text-xs font-semibold ${
-              order.status === 'Completed' ? 'text-green-800' : 'text-yellow-800'
-            }`}>
+            <Text className={`text-xs font-semibold ${order.status === 'Completed' ? 'text-green-800' : 'text-yellow-800'
+              }`}>
               {order.status}
             </Text>
           </View>
         </View>
         {order.phoneNumber && (
-          <View className={`flex-row justify-between items-center pt-3 mt-3 border-t ${
-            isDark ? 'border-gray-700' : 'border-gray-200'
-          }`}>
+          <View className={`flex-row justify-between items-center pt-3 mt-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'
+            }`}>
             <View className="flex-row items-center">
               <MaterialIcons name="phone" size={18} color={isDark ? '#9ca3af' : '#4b5563'} />
               <Text className={`ml-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -211,9 +207,8 @@ const OrderHistory = () => {
             </View>
             <Pressable
               onPress={() => Linking.openURL(`tel:${order.phoneNumber}`)}
-              className={`flex-row items-center px-1 py-2 rounded-lg ${
-                isDark ? 'bg-blue-600' : 'bg-blue-500'
-              }`}
+              className={`flex-row items-center px-1 py-2 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'
+                }`}
             >
               <MaterialIcons name="call" size={16} color="#fff" />
               <Text className="text-white font-medium ml-2">Call Now</Text>
@@ -244,7 +239,7 @@ const OrderHistory = () => {
       >
         <View className="p-4">
           <Text className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Active Sales History
+            Sales History
           </Text>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">

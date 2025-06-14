@@ -54,7 +54,6 @@ const AddOutlet = () => {
   const [pinValues, setPinValues] = useState(['', '', '', '']);
   const [existingOutlet, setExistingOutlet] = useState(null);
 
-  // Load routes on mount
   useEffect(() => {
     const loadRoutes = async () => {
       try {
@@ -68,7 +67,6 @@ const AddOutlet = () => {
     loadRoutes();
   }, []);
 
-  // Form handling functions
   const resetForm = useCallback(() => {
     setFormData(FORM_INITIAL_STATE);
     setLocationConfirmed(false);
@@ -111,7 +109,6 @@ const AddOutlet = () => {
     [params.outletId]
   );
 
-  // Location handling
   const handleLocationUpdate = useCallback(async (locationData) => {
     if (!locationData) return;
     setLocationLoading(true);
@@ -146,7 +143,6 @@ const AddOutlet = () => {
     });
   };
 
-  // Phone number verification
   const phoneExists = async (numberWithPrefix) => {
     const outletsRef = collection(db, 'outlets');
     const q = query(outletsRef, where('phoneNumber', '==', numberWithPrefix));
@@ -160,7 +156,6 @@ const AddOutlet = () => {
     return { exists: false, outlet: null };
   };
 
-  // PIN verification and outlet activation
   const verifyPinAndActivate = async (enteredPin) => {
     try {
       const querySnapshot = await getDocs(collection(db, 'users'));
@@ -189,7 +184,6 @@ const AddOutlet = () => {
           reactivatedAt: serverTimestamp()
         };
 
-        // Remove any undefined values
         Object.keys(outletData).forEach(key =>
           outletData[key] === undefined && delete outletData[key]
         );
@@ -212,7 +206,6 @@ const AddOutlet = () => {
     }
   };
 
-  // Form submission
   const handleSubmit = async () => {
     const fullPhoneNumber = formData.phoneNumber ? `+91${formData.phoneNumber}` : '';
 
@@ -294,7 +287,6 @@ const AddOutlet = () => {
     }
   };
 
-  // Refresh handling
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -312,7 +304,6 @@ const AddOutlet = () => {
     }
   }, []);
 
-  // Navigation handling
   const handleCancel = () => {
     if (hasUnsavedChanges) {
       Alert.alert(
@@ -335,7 +326,6 @@ const AddOutlet = () => {
     }
   };
 
-  // Effects for data persistence and back handling
   useFocusEffect(
     useCallback(() => {
       const checkLocation = async () => {
@@ -384,7 +374,7 @@ const AddOutlet = () => {
   // Render
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-      <View className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
         <ScrollView
           className="flex-1"
           contentContainerStyle={{ padding: 16 }}

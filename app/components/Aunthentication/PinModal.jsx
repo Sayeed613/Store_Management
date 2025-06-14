@@ -55,27 +55,27 @@ const PinInput = ({ value, index, onChangeText, inputsRef, isDark }) => {
 const PinModal = ({ values, onChange, isDark }) => {
   const inputsRef = useRef([]);
 
-     const dismissKeyboard = () => {
+  const dismissKeyboard = () => {
     Keyboard.dismiss();
   };
 
   return (
     <TouchableWithoutFeedback onPress={dismissKeyboard}>
-    <View className="w-full">
-      <View className="flex-row justify-center items-center space-x-2">
-        {[0, 1, 2, 3].map((index) => (
-          <PinInput
-            key={index}
-            value={values[index]}
-            index={index}
-            onChangeText={onChange}
-            inputsRef={inputsRef}
-            isDark={isDark}
-          />
-        ))}
+      <View className="w-full">
+        <View className="flex-row justify-center items-center space-x-2">
+          {[0, 1, 2, 3].map((index) => (
+            <PinInput
+              key={index}
+              value={values[index]}
+              index={index}
+              onChangeText={onChange}
+              inputsRef={inputsRef}
+              isDark={isDark}
+            />
+          ))}
+        </View>
       </View>
-    </View>
-     </TouchableWithoutFeedback>
+    </TouchableWithoutFeedback>
   );
 };
 

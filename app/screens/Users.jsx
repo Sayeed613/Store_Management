@@ -206,7 +206,7 @@ const handleAddUser = async (userData) => {
   }
 
   return (
-    <SafeAreaView className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+    <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
       <View className="p-4">
         <View className="flex-row items-center justify-between mb-6">
           <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>

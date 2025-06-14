@@ -83,69 +83,69 @@ const Admin = () => {
     Keyboard.dismiss();
   };
 
-const verifyPin = async (enteredPin) => {
-  try {
-    const querySnapshot = await getDocs(collection(db, 'users'));
-    const users = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+  const verifyPin = async (enteredPin) => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'users'));
+      const users = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
 
-    // Check if any user's PIN matches
-    const matchingUser = users.find(user => user.pin === enteredPin);
+      // Check if any user's PIN matches
+      const matchingUser = users.find(user => user.pin === enteredPin);
 
-    if (matchingUser) {
-      setIsAuthenticated(true);
-      // Set the matching user instead of the first user
-      setAdminUser(matchingUser);
-      setPinValues(['', '', '', '']);
-    } else {
-      Alert.alert('Error', 'Incorrect PIN');
+      if (matchingUser) {
+        setIsAuthenticated(true);
+        // Set the matching user instead of the first user
+        setAdminUser(matchingUser);
+        setPinValues(['', '', '', '']);
+      } else {
+        Alert.alert('Error', 'Incorrect PIN');
+        setPinValues(['', '', '', '']);
+      }
+    } catch (error) {
+      console.error('PIN verification failed:', error);
+      Alert.alert('Error', 'Failed to verify PIN');
       setPinValues(['', '', '', '']);
     }
-  } catch (error) {
-    console.error('PIN verification failed:', error);
-    Alert.alert('Error', 'Failed to verify PIN');
-    setPinValues(['', '', '', '']);
-  }
-};
+  };
 
-// Remove or modify the fetchAdminUser function since we don't need it anymore
-useEffect(() => {
-  // We can remove this effect or use it for other initialization
-  setLoading(false);
-}, []);
+  // Remove or modify the fetchAdminUser function since we don't need it anymore
+  useEffect(() => {
+    // We can remove this effect or use it for other initialization
+    setLoading(false);
+  }, []);
 
-const adminFeatures = [
-  {
-    title: 'Business Analytics',
-    description: 'View detailed sales reports and business metrics',
-    icon: 'insights',
-    color: '#3b82f6',
-    route: '../screens/AnalyticsOverview'
-  },
-  {
-    title: 'Store Routes',
-    description: 'View and manage delivery routes for stores',
-    icon: 'alt-route',
-    color: '#10b981',
-    route: '../screens/Route'
-  },
-  {
-    title: 'User Management',
-    description: 'Manage admin access and PIN settings',
-    icon: 'manage-accounts',
-    color: '#8b5cf6',
-    route: '../screens/Users'
-  },
-  {
-    title: 'Inactive Stores',
-    description: 'View and reactivate deactivated stores',
-    icon: 'store',
-    color: '#ec4899',
-    route: '../screens/InActiveStores'
-  }
-];
+  const adminFeatures = [
+    {
+      title: 'Business Analytics',
+      description: 'View detailed sales reports and business metrics',
+      icon: 'insights',
+      color: '#3b82f6',
+      route: '../screens/AnalyticsOverview'
+    },
+    {
+      title: 'Store Routes',
+      description: 'View and manage delivery routes for stores',
+      icon: 'alt-route',
+      color: '#10b981',
+      route: '../screens/Route'
+    },
+    {
+      title: 'User Management',
+      description: 'Manage admin access and PIN settings',
+      icon: 'manage-accounts',
+      color: '#8b5cf6',
+      route: '../screens/Users'
+    },
+    {
+      title: 'Inactive Stores',
+      description: 'View and reactivate deactivated stores',
+      icon: 'store',
+      color: '#ec4899',
+      route: '../screens/InActiveStores'
+    }
+  ];
 
 
 
@@ -154,26 +154,26 @@ const adminFeatures = [
 
   if (!isAuthenticated) {
     return (
-       <TouchableWithoutFeedback onPress={dismissKeyboard}>
-      <View className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-        <View className="flex-1 justify-center items-center p-4">
-          <View className={`p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}>
-            <Text className={`text-xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Admin Access
-            </Text>
-            <Text className={`text-sm text-center mb-8 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Enter your PIN to continue
-            </Text>
+      <TouchableWithoutFeedback onPress={dismissKeyboard}>
+        <View className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+          <View className="flex-1 justify-center items-center p-4">
+            <View className={`p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}>
+              <Text className={`text-xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Admin Access
+              </Text>
+              <Text className={`text-sm text-center mb-8 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                Enter your PIN to continue
+              </Text>
 
-            <PinModal
-              values={pinValues}
-              onChange={handlePinChange}
-              isDark={isDark}
-            />
+              <PinModal
+                values={pinValues}
+                onChange={handlePinChange}
+                isDark={isDark}
+              />
+            </View>
           </View>
         </View>
-      </View>
-        </TouchableWithoutFeedback>
+      </TouchableWithoutFeedback>
     );
   }
 

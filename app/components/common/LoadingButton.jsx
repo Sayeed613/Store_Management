@@ -34,9 +34,8 @@ export const LoadingButton = ({
       {loading ? (
         <ActivityIndicator color={variant === 'secondary' ? '#000' : '#fff'} />
       ) : (
-        <Text className={`text-center text-base font-semibold ${
-          variant === 'secondary' ? 'text-gray-700' : 'text-white'
-        }`}>
+        <Text className={`text-center text-base font-semibold ${variant === 'secondary' ? 'text-gray-700' : 'text-white'
+          }`}>
           {text}
         </Text>
       )}

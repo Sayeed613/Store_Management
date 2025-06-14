@@ -98,7 +98,7 @@ const AnalyticsOverview = () => {
   }
 
   return (
-<SafeAreaView className={`flex-1 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+<SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
       <ScrollView className="px-4" showsVerticalScrollIndicator={false}>
         <View className="py-4">
           <Text className={`text-2xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>

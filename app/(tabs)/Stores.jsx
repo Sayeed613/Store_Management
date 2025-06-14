@@ -212,7 +212,7 @@ export default function Stores() {
           }
         })}
       >
-               <View className={`border rounded-xl p-4 mb-4 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'}`}>
+        <View className={`border rounded-xl p-4 mb-4 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'}`}>
 
           {/* Store Name & Route */}
           <View className="flex-row justify-between items-center mb-2">

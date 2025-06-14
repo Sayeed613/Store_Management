@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
+  Keyboard,
   Modal,
   Pressable,
   ScrollView,
@@ -69,14 +70,25 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
     return true;
   };
 
-  const handleAddPayment = async () => {
-    if (!validatePayment(newPayment)) return;
+  const handleAddPayment = () => {
+    Keyboard.dismiss();
 
+    setTimeout(() => {
+      const trimmedAmount = newPayment?.trim();
+      if (!validatePayment(trimmedAmount)) return;
+      addPayment(trimmedAmount);
+    }, 100);
+  };
+
+  const addPayment = async (amount) => {
     setLoading(true);
     try {
-      const batch = writeBatch(db);
-      const paymentAmount = Number(newPayment);
+      const paymentAmount = Number(amount);
       const currentDate = new Date();
+
+      const batch = writeBatch(db);
+      const updatedTotalPaid = totalPaid + paymentAmount;
+      const updatedStatus = order.amount - updatedTotalPaid <= 0 ? 'Completed' : 'Pending';
 
       batch.update(doc(db, 'sales', order.id), {
         payments: arrayUnion({
@@ -85,7 +97,7 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
           paymentType: 'Cash'
         }),
         totalPaid: increment(paymentAmount),
-        status: order.amount - (totalPaid + paymentAmount) <= 0 ? 'Completed' : 'Pending',
+        status: updatedStatus,
         lastPaymentDate: currentDate,
         updatedAt: serverTimestamp()
       });
@@ -101,7 +113,7 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
 
       const updatedOrder = {
         ...order,
-        totalPaid: (totalPaid || 0) + paymentAmount,
+        totalPaid: updatedTotalPaid,
         payments: [
           ...(order.payments || []),
           {
@@ -110,7 +122,7 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
             paymentType: 'Cash'
           }
         ],
-        status: order.amount - (totalPaid + paymentAmount) <= 0 ? 'Completed' : 'Pending',
+        status: updatedStatus,
         lastPaymentDate: currentDate
       };
 
@@ -138,7 +150,8 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
       return '';
     }
   };
-  const formateTime = (data ) =>{
+
+  const formateTime = (data) => {
     if (!data) return '';
     try {
       const timestamp = data?.seconds ? new Date(data.seconds * 1000) : new Date(data);
@@ -151,18 +164,16 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
       console.error('Time formatting error:', error);
       return '';
     }
-  }
+  };
 
   return (
     <Modal visible={visible} animationType="fade" transparent>
       <View className="flex-1 justify-center items-center bg-black/50">
         <View
           className={`w-[90%] rounded-2xl ${isDark ? 'bg-gray-900' : 'bg-white'} shadow-xl`}
-          style={{ maxHeight: '80%' }}
+          style={{ maxHeight: '50%' }}
         >
-          <View className={`flex-row justify-between items-center p-4 border-b ${
-            isDark ? 'border-gray-700' : 'border-gray-200'
-          }`}>
+          <View className={`flex-row justify-between items-center p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
             <View>
               <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 Payment Details
@@ -193,11 +204,7 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
                 <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                   Balance
                 </Text>
-                <Text className={`text-xl font-bold mt-1 ${
-                  credit > 0
-                    ? isDark ? 'text-red-400' : 'text-red-600'
-                    : isDark ? 'text-green-400' : 'text-green-600'
-                }`}>
+                <Text className={`text-xl font-bold mt-1 ${credit > 0 ? (isDark ? 'text-red-400' : 'text-red-600') : (isDark ? 'text-green-400' : 'text-green-600')}`}>
                   ₹{credit.toFixed(2)}
                 </Text>
               </View>
@@ -227,23 +234,19 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
                 </Text>
                 <View className="flex-row">
                   <TextInput
-                    className={`flex-1 px-4 py-3 rounded-l-xl border ${
-                      isDark
-                        ? 'border-gray-700 bg-gray-800 text-white'
-                        : 'border-gray-300 bg-white text-gray-900'
-                    }`}
+                    className={`flex-1 px-4 py-3 rounded-l-xl border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'}`}
                     placeholder="Enter amount"
                     placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
                     keyboardType="numeric"
                     value={newPayment}
                     onChangeText={setNewPayment}
+                    blurOnSubmit
+                    returnKeyType="done"
                   />
                   <Pressable
                     onPress={handleAddPayment}
                     disabled={loading}
-                    className={`px-6 py-3 rounded-r-xl ${
-                      loading ? 'bg-gray-500' : 'bg-blue-500'
-                    }`}
+                    className={`px-6 py-3 rounded-r-xl ${loading ? 'bg-gray-500' : 'bg-blue-500'}`}
                   >
                     <Text className="text-white font-medium">
                       {loading ? 'Adding...' : 'Pay'}
@@ -262,9 +265,7 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
                 keyExtractor={(item, index) => index.toString()}
                 scrollEnabled={false}
                 renderItem={({ item }) => (
-                  <View className={`flex-row justify-between items-center p-4 mb-2 rounded-xl ${
-                    isDark ? 'bg-gray-800' : 'bg-gray-50'
-                  }`}>
+                  <View className={`flex-row justify-between items-center p-4 mb-2 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
                     <View>
                       <View className="flex-row items-center">
                         <MaterialIcons

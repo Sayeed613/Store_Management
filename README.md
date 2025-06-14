@@ -150,16 +150,15 @@ app/
 ## Firebase Operations
 
 ### Daily Operations
-| Operation | Collection | Reads | Writes | Frequency | Daily Total |
-|-----------|------------|--------|---------|-----------|-------------|
-| User Auth | `users` | 1 | 0 | ~50 times | 50 reads |
-| List Stores | `stores` | 1 query | 0 | ~10 times | 10 reads |
-| View Store | `stores` | 1 | 0 | ~20 times | 20 reads |
-| Add/Edit Store | `stores` | 1 | 1 | ~2 times | 2 reads, 2 writes |
-| Create Sale | `sales` | 1 | 1 | ~30 times | 30 reads, 30 writes |
-| Update Payment | `sales` | 1 | 1 | ~15 times | 15 reads, 15 writes |
-| View Orders | `sales` | 1 query | 0 | ~50 times | 50 reads |
-| User Management | `users` | 1 | 1 | ~5 times | 5 reads, 5 writes |
+| Operation             | Daily Reads | Daily Writes | Monthly Total|
+|-----------------------|-------------|--------------|--------------|
+| Store Operations      | ~100        | ~20          | ~3,600       |
+| Sales/Orders          | ~200        | ~50          | ~7,500       |
+| Analytics             | ~50         | 0            | ~1,500       |
+| User Operations       | ~50         | ~10          | ~1,800       |
+| Route Management      | ~20         | ~5           | ~750         |
+|-----------------------|-------------|--------------|--------------|
+| Total                 | ~420        | ~85          | ~15,150      |
 
 ### Monthly Estimate
 | Type | Daily Average | Monthly Total | Firebase Tier |

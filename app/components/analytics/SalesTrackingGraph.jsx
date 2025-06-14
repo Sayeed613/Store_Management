@@ -152,7 +152,7 @@ const SalesTrackingGraph = ({ transactions = [] }) => {
           }
 
           if (transDate.getMonth() === currentMonth &&
-              transDate.getFullYear() === currentYear) {
+            transDate.getFullYear() === currentYear) {
             const amount = Number(transaction.amount) || 0;
             acc.monthTotal += amount;
 

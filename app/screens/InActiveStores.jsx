@@ -157,7 +157,7 @@ const InActiveStores = () => {
   }
 
   return (
-    <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
+    <SafeAreaView className={`flex-1  ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
       <View className="p-4">
         <Text className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Inactive Stores ({inactiveOutlets.length})
