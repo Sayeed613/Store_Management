@@ -22,6 +22,7 @@ import SalesTrackingGraph from '../analytics/SalesTrackingGraph';
 import PinModal from '../Aunthentication/PinModal';
 import Loader from '../common/Loader';
 import { Select } from '../forms/Select';
+import Order from "../transactions/Order";
 import TransactionList from '../transactions/TransactionList';
 
 export default function OutletDetail() {
@@ -38,6 +39,7 @@ export default function OutletDetail() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinValues, setPinValues] = useState(['', '', '', '']);
   const [isDeactivating, setIsDeactivating] = useState(false);
+  const [showOrderModal, setShowOrderModal] = useState(false);
   const [editedData, setEditedData] = useState({
     storeName: '',
     propName: '',
@@ -114,23 +116,23 @@ export default function OutletDetail() {
     };
   }, [params.id]);
 
-const totals = useMemo(() => {
-  return transactions.reduce((acc, transaction) => {
-    const amount = Number(transaction.amount) || 0;
-    const totalPaid = transaction.payments?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) || 0;
-    const remaining = amount - totalPaid;
+  const totals = useMemo(() => {
+    return transactions.reduce((acc, transaction) => {
+      const amount = Number(transaction.amount) || 0;
+      const totalPaid = transaction.payments?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) || 0;
+      const remaining = amount - totalPaid;
 
-    return {
-      totalSales: acc.totalSales + amount,
-      totalBalance: acc.totalBalance + (remaining > 0 ? remaining : 0),
+      return {
+        totalSales: acc.totalSales + amount,
+        totalBalance: acc.totalBalance + (remaining > 0 ? remaining : 0),
+        creditLimit: outletData?.creditLimit || 0
+      };
+    }, {
+      totalSales: 0,
+      totalBalance: 0,
       creditLimit: outletData?.creditLimit || 0
-    };
-  }, {
-    totalSales: 0,
-    totalBalance: 0,
-    creditLimit: outletData?.creditLimit || 0
-  });
-}, [transactions, outletData?.creditLimit]);
+    });
+  }, [transactions, outletData?.creditLimit]);
 
   const handleCall = useCallback(() => {
     if (outletData?.phoneNumber) {
@@ -185,24 +187,26 @@ const totals = useMemo(() => {
       Alert.alert('Error', 'Failed to delete transaction');
     }
   }, []);
-  // Add these functions after other handlers
 
-const handlePinChange = (index, value) => {
-  const newPinValues = [...pinValues];
-  newPinValues[index] = value;
-  setPinValues(newPinValues);
+  const handlePinChange = (index, value) => {
+    const newPinValues = [...pinValues];
+    newPinValues[index] = value;
+    setPinValues(newPinValues);
 
-  if (index === 3 && value !== '') {
-    verifyPinAndDeactivate(newPinValues.join(''));
-  }
-};
+    if (index === 3 && value !== '') {
+      verifyPinAndDeactivate(newPinValues.join(''));
+    }
+  };
 
-const verifyPinAndDeactivate = async (enteredPin) => {
+  const verifyPinAndDeactivate = async (enteredPin) => {
   try {
     const querySnapshot = await getDocs(collection(db, 'users'));
-    const adminUser = querySnapshot.docs[0]?.data();
+    const adminUsers = querySnapshot.docs.map(doc => doc.data());
 
-    if (adminUser?.pin.toString() === enteredPin) {
+    // Check if entered PIN matches any admin PIN
+    const isPinValid = adminUsers.some(admin => admin.pin.toString() === enteredPin);
+
+    if (isPinValid) {
       await updateDoc(doc(db, 'outlets', params.id), {
         status: 'inactive',
         deactivatedAt: serverTimestamp(),
@@ -218,6 +222,7 @@ const verifyPinAndDeactivate = async (enteredPin) => {
   } catch (error) {
     console.error('Deactivation failed:', error);
     Alert.alert('Error', 'Failed to deactivate outlet');
+    setPinValues(['', '', '', '']);
   }
 };
 
@@ -346,19 +351,19 @@ const verifyPinAndDeactivate = async (enteredPin) => {
         <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {outletData?.storeName}
         </Text>
-       <View className="flex-row">
-        <Pressable
-          onPress={() => setIsEditing(true)}
-          className={`p-2 rounded-full mr-2 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
-        >
-          <MaterialIcons name="edit" size={20} color={isDark ? '#fff' : '#374151'} />
-        </Pressable>
-        <Pressable
-          onPress={() => setShowPinModal(true)}
-          className="p-2 rounded-full bg-red-500"
-        >
-          <MaterialIcons name="delete" size={20} color="#fff" />
-        </Pressable>
+        <View className="flex-row">
+          <Pressable
+            onPress={() => setIsEditing(true)}
+            className={`p-2 rounded-full mr-2 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
+          >
+            <MaterialIcons name="edit" size={20} color={isDark ? '#fff' : '#374151'} />
+          </Pressable>
+          <Pressable
+            onPress={() => setShowPinModal(true)}
+            className="p-2 rounded-full bg-red-500"
+          >
+            <MaterialIcons name="delete" size={20} color="#fff" />
+          </Pressable>
         </View>
       </View>
 
@@ -378,74 +383,68 @@ const verifyPinAndDeactivate = async (enteredPin) => {
             </Text>
           </View>
         </View>
-
-
         {/* Address and Phone */}
-       <View className="flex-row justify-between">
-  {/* Address Section */}
-  <Pressable
-    onPress={openInMaps}
-    accessibilityLabel="Open address in map"
-    accessibilityRole="button"
-    className="flex-1 mr-4"
-  >
-    <View>
-      <View className="flex-row items-center mb-1">
-        <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Address</Text>
-        <MaterialIcons
-          name="open-in-new"
-          size={20}
-          color={isDark ? '#60a5fa' : '#2563eb'}
-          style={{ marginLeft: 6 }}
-        />
-      </View>
+        <View className="flex-row justify-between">
+          {/* Address Section */}
+          <Pressable
+            onPress={openInMaps}
+            accessibilityLabel="Open address in map"
+            accessibilityRole="button"
+            className="flex-1 mr-4"
+          >
+            <View>
+              <View className="flex-row items-center mb-1">
+                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Address</Text>
+                <MaterialIcons
+                  name="open-in-new"
+                  size={20}
+                  color={isDark ? '#60a5fa' : '#2563eb'}
+                  style={{ marginLeft: 6 }}
+                />
+              </View>
 
-      <View className="flex-row items-center">
-        <Text className={`text-base underline ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          {[outletData?.street, outletData?.locality, outletData?.landmark].filter(Boolean).join(', ')}
-        </Text>
-      </View>
+              <View className="flex-row items-center">
+                <Text className={`text-base underline ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  {[outletData?.street, outletData?.locality, outletData?.landmark].filter(Boolean).join(', ')}
+                </Text>
+              </View>
 
-      <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-        Tap to get directions
-      </Text>
-    </View>
-  </Pressable>
+              <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Tap to get directions
+              </Text>
+            </View>
+          </Pressable>
 
-  {/* Phone Section */}
-  <Pressable
-    onPress={handleCall}
-    accessibilityLabel="Call this number"
-    accessibilityRole="button"
-    className="flex-1"
-  >
-    <View>
-      <View className="flex-row items-center mb-1">
-        <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Phone</Text>
-        <MaterialIcons
-          name="phone"
-          size={20}
-          color={isDark ? '#4ade80' : '#16a34a'}
-          style={{ marginLeft: 8 }}
-        />
-      </View>
+          {/* Phone Section */}
+          <Pressable
+            onPress={handleCall}
+            accessibilityLabel="Call this number"
+            accessibilityRole="button"
+            className="flex-1"
+          >
+            <View>
+              <View className="flex-row items-center mb-1">
+                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Phone</Text>
+                <MaterialIcons
+                  name="phone"
+                  size={20}
+                  color={isDark ? '#4ade80' : '#16a34a'}
+                  style={{ marginLeft: 8 }}
+                />
+              </View>
 
-      <View className="flex-row items-center">
-        <Text className={`text-base underline ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          {outletData?.phoneNumber}
-        </Text>
-      </View>
+              <View className="flex-row items-center">
+                <Text className={`text-base underline ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  {outletData?.phoneNumber}
+                </Text>
+              </View>
 
-      <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-        Tap to call
-      </Text>
-    </View>
-  </Pressable>
-</View>
-
-
-
-
+              <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Tap to call
+              </Text>
+            </View>
+          </Pressable>
+        </View>
         {/* Sales and Balance Cards */}
         <View className="flex-row mt-2 justify-between">
           <View className="flex-1 mr-2 p-3 rounded-xl bg-green-100">
@@ -467,17 +466,17 @@ const verifyPinAndDeactivate = async (enteredPin) => {
             </Text>
           </View>
         </View>
-         <View className='mt-2'>
+        <View className='mt-2'>
           <View className="bg-blue-100 p-3 rounded-xl">
-        <Text className="text-xs text-blue-800">Credit Limit</Text>
-        <Text className="text-sm font-bold text-blue-800">
-          ₹{totals.creditLimit.toLocaleString('en-IN', {
-            maximumFractionDigits: 2,
-            minimumFractionDigits: 2
-          })}
-        </Text>
-      </View>
-         </View>
+            <Text className="text-xs text-blue-800">Credit Limit</Text>
+            <Text className="text-sm font-bold text-blue-800">
+              ₹{totals.creditLimit.toLocaleString('en-IN', {
+                maximumFractionDigits: 2,
+                minimumFractionDigits: 2
+              })}
+            </Text>
+          </View>
+        </View>
 
         {/* View Sales Analytics Button */}
         <View className="pt-4 ">
@@ -500,54 +499,53 @@ const verifyPinAndDeactivate = async (enteredPin) => {
         </View>
       </View>
     </View>
-  ), [isDark, outletData,totals,  setIsEditing]);
+  ), [isDark, outletData, totals, setIsEditing]);
 
 
-  // Add this before the final return statement
 
-const renderPinModal = () => (
-  <Modal
-    isVisible={showPinModal}
-    backdropOpacity={0.5}
-    animationIn="fadeIn"
-    animationOut="fadeOut"
-    useNativeDriver
-    hideModalContentWhileAnimating
-    onBackdropPress={() => {
-      setShowPinModal(false);
-      setPinValues(['', '', '', '']);
-    }}
-  >
-    <View className="flex-1 justify-center items-center">
-      <View className={`p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl min-w-[320px]`}>
-        <Text className={`text-xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          Confirm Deactivation
-        </Text>
-        <Text className={`text-sm text-center mb-8 ${isDark ? 'text-red-400' : 'text-red-600'}`}>
-          Enter PIN to deactivate this outlet
-        </Text>
-
-        <PinModal
-          values={pinValues}
-          onChange={handlePinChange}
-          isDark={isDark}
-        />
-
-        <TouchableOpacity
-          onPress={() => {
-            setShowPinModal(false);
-            setPinValues(['', '', '', '']);
-          }}
-          className="mt-6"
-        >
-          <Text className={`text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            Cancel
+  const renderPinModal = () => (
+    <Modal
+      isVisible={showPinModal}
+      backdropOpacity={0.5}
+      animationIn="fadeIn"
+      animationOut="fadeOut"
+      useNativeDriver
+      hideModalContentWhileAnimating
+      onBackdropPress={() => {
+        setShowPinModal(false);
+        setPinValues(['', '', '', '']);
+      }}
+    >
+      <View className="flex-1 justify-center items-center">
+        <View className={`p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl min-w-[320px]`}>
+          <Text className={`text-xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            Confirm Deactivation
           </Text>
-        </TouchableOpacity>
+          <Text className={`text-sm text-center mb-8 ${isDark ? 'text-red-400' : 'text-red-600'}`}>
+            Enter PIN to deactivate this outlet
+          </Text>
+
+          <PinModal
+            values={pinValues}
+            onChange={handlePinChange}
+            isDark={isDark}
+          />
+
+          <TouchableOpacity
+            onPress={() => {
+              setShowPinModal(false);
+              setPinValues(['', '', '', '']);
+            }}
+            className="mt-6"
+          >
+            <Text className={`text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  </Modal>
-);
+    </Modal>
+  );
 
   const renderGraphModal = () => (
     <Modal
@@ -565,7 +563,7 @@ const renderPinModal = () => (
             }`}>
             <View>
               <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Sales Analytics
+               Monthly Sales Overview
               </Text>
 
             </View>
@@ -625,6 +623,29 @@ const renderPinModal = () => (
           </View>
         )}
       </Animated.ScrollView>
+
+      <Pressable
+        onPress={() => setShowOrderModal(true)}
+        className="absolute bottom-8  left-1/2 -ml-12 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
+        style={{
+          transform: [{ translateX: -16 }],
+          elevation: 5,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 3.84,
+        }}
+      >
+        <Ionicons name="add" size={24} color="white" />
+        <Text className="text-white font-medium ml-1">Add Sale</Text>
+      </Pressable>
+
+      <Order
+        visible={showOrderModal}
+        onClose={() => setShowOrderModal(false)}
+        onOrderSaved={() => setShowOrderModal(false)}
+        preselectedOutlet={outletData}
+      />
       {renderGraphModal()}
       {renderPinModal()}
     </SafeAreaView>

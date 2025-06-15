@@ -209,9 +209,11 @@ const AddOutlet = () => {
   const handleSubmit = async () => {
     const fullPhoneNumber = formData.phoneNumber ? `+91${formData.phoneNumber}` : '';
 
-    if (!formData.storeName || !fullPhoneNumber || !formData.location || !formData.route) {
-      Alert.alert('Missing Information', 'Please fill all required fields and add location');
-      return;
+    if (!formData.storeName || !fullPhoneNumber || !formData.location || !formData.route || !formData.creditLimit) {
+      Alert.alert(
+        'Missing Information',
+        'Please fill all required fields including store name, phone number, location, route and credit limit'
+      ); return;
     }
 
     setSaveLoading(true);
@@ -514,6 +516,7 @@ const AddOutlet = () => {
                   !formData.phoneNumber ||
                   !formData.location ||
                   !formData.route ||
+                  !formData.creditLimit ||
                   locationLoading
                 }
               />

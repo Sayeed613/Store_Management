@@ -7,7 +7,7 @@ import { useTheme } from '../context/ThemeContextProvider';
 import { db } from '../services/firebase/config';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = (SCREEN_WIDTH - 32) / 2; // 32 = padding (16 * 2)
+const CARD_WIDTH = (SCREEN_WIDTH - 32) / 2;
 
 const StatCard = ({ title, value, count, icon, color, isDark }) => (
   <View
@@ -98,16 +98,15 @@ const AnalyticsOverview = () => {
   }
 
   return (
-<SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
-      <ScrollView className="px-4" showsVerticalScrollIndicator={false}>
-        <View className="py-4">
+    <SafeAreaView className={`flex-1  ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <ScrollView className="px-2 -mt-10" showsVerticalScrollIndicator={false}>
+        <View className="py-2">
           <Text className={`text-2xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
             Analytics
           </Text>
           <Text className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             Monthly performance overview
           </Text>
-
           <View className="flex-row flex-wrap justify-between">
             <StatCard
               title="Cash Sales"

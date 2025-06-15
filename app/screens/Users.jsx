@@ -20,10 +20,10 @@ const UserCard = ({ user, onResetPin, isDark }) => (
     <View className="flex-row justify-between items-center">
       <View className="flex-1">
         <Text className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          {user.name}
+          {user.name.toUpperCase()}
         </Text>
         <Text className={`mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-          ID: {user.id.substring(0, 8)}...
+          ID: {user.id}
         </Text>
       </View>
       <TouchableOpacity
@@ -32,7 +32,6 @@ const UserCard = ({ user, onResetPin, isDark }) => (
           ${isDark ? 'bg-blue-600' : 'bg-blue-500'} active:opacity-80`}
       >
         <MaterialIcons name="lock-reset" size={18} color="white" />
-        <Text className="text-white ml-2 font-medium">Reset PIN</Text>
       </TouchableOpacity>
     </View>
   </View>
@@ -217,7 +216,6 @@ const handleAddUser = async (userData) => {
             className="px-4 py-2 rounded-lg bg-blue-500 flex-row items-center"
           >
             <MaterialIcons name="person-add" size={20} color="white" />
-            <Text className="text-white font-medium ml-2">Add User</Text>
           </TouchableOpacity>
         </View>
 

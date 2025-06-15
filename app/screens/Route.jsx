@@ -1,16 +1,38 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  updateDoc
+} from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  Switch,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContextProvider';
 import { db } from '../services/firebase/config';
 
 const RouteCard = ({ route, isDark, onToggleStatus }) => (
-  <View className={`mb-4 p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-    <View className="flex-row justify-between items-center">
-      <View className="flex-1">
-        <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+  <View className={`mb-4 px-5 py-4 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
+    <View className="flex-row items-center justify-between">
+      <View className="flex-row items-center gap-3">
+        <MaterialIcons
+          name="alt-route"
+          size={24}
+          color={isDark ? '#60a5fa' : '#3b82f6'}
+        />
+        <Text className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {route.route}
         </Text>
       </View>
@@ -45,7 +67,6 @@ const AddRouteModal = ({ visible, onClose, isDark }) => {
         route: routeName.trim(),
         status: true
       });
-
       onClose(true);
       setRouteName('');
     } catch (error) {
@@ -57,22 +78,10 @@ const AddRouteModal = ({ visible, onClose, isDark }) => {
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={() => onClose(false)}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => onClose(false)}>
       <View className="flex-1 justify-center items-center bg-black/50">
         <View
-          className={`w-[90%] p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-          style={{
-            shadowColor: isDark ? '#000' : '#475569',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 3.84,
-            elevation: 5
-          }}
+          className={`w-[90%] p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}
         >
           <Text className={`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
             Add New Route
@@ -83,9 +92,7 @@ const AddRouteModal = ({ visible, onClose, isDark }) => {
             onChangeText={setRouteName}
             placeholder="Enter route name"
             placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
-            className={`p-3 rounded-lg mb-4 ${
-              isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'
-            }`}
+            className={`p-3 rounded-lg mb-4 ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'}`}
           />
 
           <View className="flex-row justify-end gap-2">
@@ -120,51 +127,44 @@ const Route = () => {
     fetchRoutes();
   }, []);
 
- const fetchRoutes = async () => {
-  try {
-    const routeQuery = query(collection(db, 'route'), orderBy('route', 'asc'));
-    const routesSnapshot = await getDocs(routeQuery);
-    const routesData = routesSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    setRoutes(routesData);
-  } catch (error) {
-    console.error('Error fetching routes:', error);
-    Alert.alert('Error', 'Failed to fetch routes');
-  } finally {
-    setLoading(false);
-  }
-};
+  const fetchRoutes = async () => {
+    try {
+      const routeQuery = query(collection(db, 'route'), orderBy('route', 'asc'));
+      const snapshot = await getDocs(routeQuery);
+      const routesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setRoutes(routesData);
+    } catch (error) {
+      console.error('Error fetching routes:', error);
+      Alert.alert('Error', 'Failed to fetch routes');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleToggleStatus = async (routeId, newStatus) => {
     try {
-      const routeRef = doc(db, 'route', routeId);
-      await updateDoc(routeRef, {
-        status: newStatus
-      });
+      const ref = doc(db, 'route', routeId);
+      await updateDoc(ref, { status: newStatus });
 
-      setRoutes(prevRoutes =>
-        prevRoutes.map(route =>
+      setRoutes(prev =>
+        prev.map(route =>
           route.id === routeId ? { ...route, status: newStatus } : route
         )
       );
 
-      Alert.alert(
-        'Success',
-        `Route ${routeId} ${newStatus ? 'activated' : 'deactivated'} successfully`
-      );
+      Alert.alert('Success', `Route ${newStatus ? 'activated' : 'deactivated'} successfully`);
     } catch (error) {
-      console.error('Error updating route status:', error);
-      Alert.alert('Error', 'Failed to update route status');
+      console.error('Error updating status:', error);
+      Alert.alert('Error', 'Failed to update status');
     }
   };
 
   const handleModalClose = (shouldRefetch) => {
     setShowAddModal(false);
-    if (shouldRefetch) {
-      fetchRoutes();
-    }
+    if (shouldRefetch) fetchRoutes();
   };
 
   if (loading) {
@@ -186,7 +186,7 @@ const Route = () => {
               Routes
             </Text>
             <Text className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Manage route status
+              Manage delivery routes and their status
             </Text>
           </View>
           <Pressable
@@ -198,12 +198,8 @@ const Route = () => {
         </View>
 
         {routes.length === 0 ? (
-          <View className={`p-8 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} items-center`}>
-            <MaterialIcons
-              name="route"
-              size={48}
-              color={isDark ? '#4b5563' : '#9ca3af'}
-            />
+          <View className={`p-8 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} items-center`}>
+            <MaterialIcons name="alt-route" size={48} color={isDark ? '#4b5563' : '#9ca3af'} />
             <Text className={`mt-4 text-base ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               No routes found
             </Text>
@@ -219,11 +215,7 @@ const Route = () => {
           ))
         )}
 
-        <AddRouteModal
-          visible={showAddModal}
-          onClose={handleModalClose}
-          isDark={isDark}
-        />
+        <AddRouteModal visible={showAddModal} onClose={handleModalClose} isDark={isDark} />
       </ScrollView>
     </SafeAreaView>
   );

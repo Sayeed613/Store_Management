@@ -15,11 +15,11 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   Text,
   TextInput,
   View
@@ -31,7 +31,7 @@ import { db } from '../../services/firebase/config';
 const salesTypes = ['Godown', 'Salesman', 'Store'];
 const purchaseTypes = ['Credit', 'Cash'];
 
-const Order = ({ visible, onClose, onOrderSaved }) => {
+const Order = ({ visible, onClose, onOrderSaved, preselectedOutlet = null }) => {
   const router = useRouter();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -55,27 +55,66 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
   const [totalAmount, setTotalAmount] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
 
-  // Fetch only active outlets
-  useEffect(() => {
-    const fetchOutlets = async () => {
-      try {
-        const outletsRef = collection(db, 'outlets');
-        const q = query(outletsRef, where('status', '==', 'active'));
-        const snapshot = await getDocs(q);
+
+useEffect(() => {
+  let isMounted = true;
+
+  const fetchOutlets = async () => {
+    try {
+      const outletsRef = collection(db, 'outlets');
+      const q = query(outletsRef, where('status', '==', 'active'));
+      const snapshot = await getDocs(q);
+
+      if (isMounted) {
         const outletList = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
         setOutlets(outletList);
-      } catch (error) {
+      }
+    } catch (error) {
+      if (isMounted) {
         console.error('Failed to load outlets:', error);
         Alert.alert('Error', 'Failed to load outlets');
       }
-    };
-    fetchOutlets();
-  }, []);
+    }
+  };
 
-  // Search functionality
+  fetchOutlets();
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
+
+
+useEffect(() => {
+  if (!visible) {
+    const timeoutId = setTimeout(() => {
+      setSelectedOutlet(null);
+      setSearchText('');
+      setCustomerName('');
+      setPaidAmount('');
+      setTotalAmount('');
+      setSalesType(salesTypes[0]);
+      setPurchaseType(purchaseTypes[0]);
+      setAmount('');
+      setOrderDate(new Date());
+      setShowSuggestions(false);
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }
+
+  if (visible && preselectedOutlet && preselectedOutlet.status === 'active') {
+    setSelectedOutlet(preselectedOutlet);
+    setSearchText(preselectedOutlet.storeName);
+    setCustomerName(preselectedOutlet.propName || '');
+    setShowSuggestions(false);
+  }
+}, [visible, preselectedOutlet]);
+
+
   useEffect(() => {
     if (!searchText.trim()) {
       setFilteredOutlets([]);
@@ -85,34 +124,44 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
 
     const lowerSearchText = searchText.toLowerCase();
     const filtered = outlets.filter(outlet => (
-      outlet.storeName?.toLowerCase().includes(lowerSearchText) ||
-      outlet.phoneNumber?.includes(lowerSearchText) ||
-      outlet.propName?.toLowerCase().includes(lowerSearchText)
+      outlet.status === 'active' &&
+      (
+        outlet.storeName?.toLowerCase().includes(lowerSearchText) ||
+        outlet.phoneNumber?.includes(lowerSearchText) ||
+        outlet.propName?.toLowerCase().includes(lowerSearchText)
+      )
     ));
 
     setFilteredOutlets(filtered);
     setShowSuggestions(filtered.length > 0);
   }, [searchText, outlets]);
 
-  // Handle preselected outlet
   useEffect(() => {
-    const params = router.params;
-    if (params?.preselectedOutlet) {
-      try {
-        const preselectedOutlet = JSON.parse(params.preselectedOutlet);
-        if (preselectedOutlet.status === 'active') {
-          setSelectedOutlet(preselectedOutlet);
-          setSearchText(preselectedOutlet.storeName);
-          setCustomerName(preselectedOutlet.propName || '');
-          setShowSuggestions(false);
-        }
-      } catch (error) {
-        console.error('Failed to parse preselected outlet:', error);
-      }
-    }
-  }, [router.params]);
+  if (!visible) {
+    const timeoutId = setTimeout(() => {
+      setSelectedOutlet(null);
+      setSearchText('');
+      setCustomerName('');
+      setPaidAmount('');
+      setTotalAmount('');
+      setSalesType(salesTypes[0]);
+      setPurchaseType(purchaseTypes[0]);
+      setAmount('');
+      setOrderDate(new Date());
+      setShowSuggestions(false);
+    }, 100);
 
-  // Purchase type effects
+    return () => clearTimeout(timeoutId);
+  }
+
+  if (visible && preselectedOutlet && preselectedOutlet.status === 'active') {
+    setSelectedOutlet(preselectedOutlet);
+    setSearchText(preselectedOutlet.storeName);
+    setCustomerName(preselectedOutlet.propName || '');
+    setShowSuggestions(false);
+  }
+}, [visible, preselectedOutlet]);
+
   useEffect(() => {
     if (purchaseType === 'Cash') {
       setAmount(totalAmount || '');
@@ -237,7 +286,8 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
     onClose?.();
   };
 
-  const renderSearchBar = () => (
+
+const renderSearchBar = () => (
   <View className="relative z-20">
     <TextInput
       placeholder="Search outlet"
@@ -256,9 +306,8 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
           setSearchText('');
         }
       }}
-      className={`border rounded-xl px-4 py-3 ${
-        isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
-      }`}
+      className={`border rounded-xl px-4 py-3 ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
+        }`}
     />
 
     {showSuggestions && (
@@ -274,61 +323,54 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
         }}
       >
         <View
-          className={`border rounded-xl overflow-hidden ${
-            isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
-          }`}
-          >
+          className={`border rounded-xl overflow-hidden ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
+            }`}
+        >
           {filteredOutlets.length > 0 ? (
-            <FlatList
-              data={filteredOutlets}
-              keyExtractor={item => item.id}
+            <ScrollView
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled={true}
               showsVerticalScrollIndicator={true}
               style={{ maxHeight: 300 }}
               contentContainerStyle={{ paddingBottom: 8 }}
-              renderItem={({ item }) => (
+            >
+              {filteredOutlets.map((item) => (
                 <Pressable
+                  key={item.id}
                   onPress={() => handleSelectOutlet(item)}
-                  className={`px-4 py-3 border-b ${
-                    isDark ? 'border-gray-700 active:bg-gray-700' : 'border-gray-200 active:bg-gray-100'
-                  }`}
+                  className={`px-4 py-3 border-b ${isDark ? 'border-gray-700 active:bg-gray-700' : 'border-gray-200 active:bg-gray-100'
+                    }`}
                 >
                   <Text
-                    className={`font-semibold ${
-                      isDark ? 'text-white' : 'text-gray-900'
-                    }`}
+                    className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'
+                      }`}
                   >
                     {item.storeName}
                   </Text>
                   <Text
-                    className={`text-sm mt-1 ${
-                      isDark ? 'text-gray-400' : 'text-gray-600'
-                    }`}
+                    className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}
                   >{item.propName} • {item.phoneNumber}
                   </Text>
                   <View className='flex-row justify-between items-center'>
-                    <Text className={`text-xs mt-1 ${
-                      isDark ? 'text-gray-500' : 'text-gray-600'
-                    }`}>
+                    <Text className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-600'
+                      }`}>
                       {[item.street, item.route, item.locality]
                         .filter(Boolean)
                         .join(', ')}
                     </Text>
-                    <Text className={`text-sm ${
-                      isDark ? 'text-gray-400' : 'text-gray-600'
-                    }`}>
+                    <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
                       Credit Limit: ₹{item.creditLimit || 0}
                     </Text>
                   </View>
                 </Pressable>
-              )}
-            />
+              ))}
+            </ScrollView>
           ) : (
             <View className="p-4 items-center">
-              <Text className={`text-sm ${
-                isDark ? 'text-gray-400' : 'text-gray-600'
-              }`}>
+              <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                 No active outlets found
               </Text>
             </View>
@@ -337,7 +379,7 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
       </View>
     )}
   </View>
-  )
+)
 
   const renderSelectedOutlet = () => (
     <Pressable
@@ -396,144 +438,136 @@ const Order = ({ visible, onClose, onOrderSaved }) => {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           className="flex-1"
         >
-          <FlatList
-            ListHeaderComponent={
-              <View className="p-4">
-                <View className="relative z-20">
-                  {selectedOutlet ? renderSelectedOutlet() : renderSearchBar()}
+          <ScrollView
+            contentContainerStyle={{ paddingBottom: 100 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View className="p-4">
+              <View className="relative z-20">
+                {selectedOutlet ? renderSelectedOutlet() : renderSearchBar()}
+              </View>
+
+              <View className="relative z-10 mt-4 space-y-4">
+                <Pressable
+                  onPress={() => setShowDatePicker(true)}
+                  className={`border rounded-xl px-4 py-3 ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'}`}
+                >
+                  <Text className={isDark ? 'text-white' : 'text-gray-900'}>
+                    Order Date: {orderDate.toLocaleDateString()}
+                  </Text>
+                </Pressable>
+
+                <View>
+                  <Text className={`font-semibold text-base mt-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    Sales Type
+                  </Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {salesTypes.map(type => (
+                      <Pressable
+                        key={type}
+                        onPress={() => setSalesType(type)}
+                        className={`px-4 py-2 rounded-full border mt-2 ${salesType === type
+                          ? 'bg-blue-600 border-blue-600'
+                          : isDark
+                            ? 'bg-gray-800 border-gray-700'
+                            : 'bg-white border-gray-300'
+                          }`}
+                      >
+                        <Text className={`text-sm font-medium ${salesType === type ? 'text-white' : isDark ? 'text-gray-300' : 'text-gray-900'}`}>
+                          {type}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
 
-                <View className="relative z-10 mt-4 space-y-4">
-                  <Pressable
-                    onPress={() => setShowDatePicker(true)}
-                    className={`border rounded-xl px-4 py-3 ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
-                      }`}
-                  >
-                    <Text className={isDark ? 'text-white' : 'text-gray-900'}>
-                      Order Date: {orderDate.toLocaleDateString()}
-                    </Text>
-                  </Pressable>
-
-                  <View>
-                    <Text className={`font-semibold text-base mt-4 ${isDark ? 'text-white' : 'text-gray-900'
-                      }`}>
-                      Sales Type
-                    </Text>
-                    <View className="flex-row flex-wrap gap-2">
-                      {salesTypes.map(type => (
-                        <Pressable
-                          key={type}
-                          onPress={() => setSalesType(type)}
-                          className={`px-4 py-2 rounded-full border mt-2 ${salesType === type
-                            ? 'bg-blue-600 border-blue-600'
-                            : isDark
-                              ? 'bg-gray-800 border-gray-700'
-                              : 'bg-white border-gray-300'
-                            }`}
-                        >
-                          <Text className={`text-sm font-medium ${salesType === type ? 'text-white' : isDark ? 'text-gray-300' : 'text-gray-900'
-                            }`}>
-                            {type}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
+                <View>
+                  <Text className={`font-semibold text-base mt-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    Purchase Type
+                  </Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {purchaseTypes.map(type => (
+                      <Pressable
+                        key={type}
+                        onPress={() => setPurchaseType(type)}
+                        className={`px-4 py-2 rounded-full border mt-2 ${purchaseType === type
+                          ? 'bg-blue-600 border-blue-600'
+                          : isDark
+                            ? 'bg-gray-800 border-gray-700'
+                            : 'bg-white border-gray-300'
+                          }`}
+                      >
+                        <Text className={`text-sm font-medium ${purchaseType === type ? 'text-white' : isDark ? 'text-gray-300' : 'text-gray-900'}`}>
+                          {type}
+                        </Text>
+                      </Pressable>
+                    ))}
                   </View>
 
-                  <View>
-                    <Text className={`font-semibold text-base mt-4 ${isDark ? 'text-white' : 'text-gray-900'
-                      }`}>
-                      Purchase Type
-                    </Text>
-                    <View className="flex-row flex-wrap gap-2">
-                      {purchaseTypes.map(type => (
-                        <Pressable
-                          key={type}
-                          onPress={() => setPurchaseType(type)}
-                          className={`px-4 py-2 rounded-full border mt-2  ${purchaseType === type
-                            ? 'bg-blue-600 border-blue-600'
-                            : isDark
-                              ? 'bg-gray-800 border-gray-700'
-                              : 'bg-white border-gray-300'
-                            }`}
-                        >
-                          <Text className={`text-sm font-medium  ${purchaseType === type ? 'text-white' : isDark ? 'text-gray-300' : 'text-gray-900'
-                            }`}>
-                            {type}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-
-                    {purchaseType === 'Cash' ? (
+                  {purchaseType === 'Cash' ? (
+                    <TextInput
+                      placeholder="Amount"
+                      placeholderTextColor={isDark ? '#888' : '#999'}
+                      value={amount}
+                      onChangeText={setAmount}
+                      keyboardType="numeric"
+                      className={`border rounded-xl px-4 py-3 mt-4 ${isDark
+                        ? 'border-gray-700 bg-gray-800 text-white'
+                        : 'border-gray-300 bg-white text-gray-900'
+                        }`}
+                    />
+                  ) : (
+                    <>
                       <TextInput
-                        placeholder="Amount"
+                        placeholder="Total Amount"
                         placeholderTextColor={isDark ? '#888' : '#999'}
-                        value={amount}
-                        onChangeText={setAmount}
+                        value={totalAmount}
+                        onChangeText={(text) => {
+                          setTotalAmount(text);
+                          setPaidAmount('');
+                        }}
                         keyboardType="numeric"
                         className={`border rounded-xl px-4 py-3 mt-4 ${isDark
                           ? 'border-gray-700 bg-gray-800 text-white'
                           : 'border-gray-300 bg-white text-gray-900'
                           }`}
                       />
-                    ) : (
-                      <>
-                        <TextInput
-                          placeholder="Total Amount"
-                          placeholderTextColor={isDark ? '#888' : '#999'}
-                          value={totalAmount}
-                          onChangeText={(text) => {
-                            setTotalAmount(text);
-                            // Optionally, you can clear paid amount when total changes
-                            setPaidAmount('');
-                          }}
-                          keyboardType="numeric"
-                          className={`border rounded-xl px-4 py-3 mt-4 ${isDark
-                            ? 'border-gray-700 bg-gray-800 text-white'
-                            : 'border-gray-300 bg-white text-gray-900'
-                            }`}
-                        />
-                        <TextInput
-                          placeholder="Paid Amount"
-                          placeholderTextColor={isDark ? '#888' : '#999'}
-                          value={paidAmount}
-                          onChangeText={setPaidAmount}
-                          keyboardType="numeric"
-                          className={`border rounded-xl px-4 py-3 mt-4 ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-300 bg-white text-gray-900'
-                            }`}
-                        />
-
-                        <Text className={`mt-2 font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          Balance: {Math.max(0, (Number(totalAmount) || 0) - (Number(paidAmount) || 0)).toFixed(2)}
-                        </Text>
-                      </>
-                    )}
-                  </View>
-
-
-                  <Pressable
-                    onPress={handleSaveSale}
-                    disabled={loading || !selectedOutlet}
-                    className={`py-3 rounded-xl items-center mt-4 ${loading || !selectedOutlet ? 'bg-gray-500' : 'bg-blue-600 active:bg-blue-700'
-                      }`}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#ffffff" />
-                    ) : (
-                      <Text className="text-white font-bold text-lg">
-                        Save Order
+                      <TextInput
+                        placeholder="Paid Amount"
+                        placeholderTextColor={isDark ? '#888' : '#999'}
+                        value={paidAmount}
+                        onChangeText={setPaidAmount}
+                        keyboardType="numeric"
+                        className={`border rounded-xl px-4 py-3 mt-4 ${isDark
+                          ? 'border-gray-700 bg-gray-800 text-white'
+                          : 'border-gray-300 bg-white text-gray-900'
+                          }`}
+                      />
+                      <Text className={`mt-2 font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Balance: {Math.max(0, (Number(totalAmount) || 0) - (Number(paidAmount) || 0)).toFixed(2)}
                       </Text>
-                    )}
-                  </Pressable>
+                    </>
+                  )}
                 </View>
+
+                <Pressable
+                  onPress={handleSaveSale}
+                  disabled={loading || !selectedOutlet}
+                  className={`py-3 rounded-xl items-center mt-4 ${loading || !selectedOutlet ? 'bg-gray-500' : 'bg-blue-600 active:bg-blue-700'}`}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#ffffff" />
+                  ) : (
+                    <Text className="text-white font-bold text-lg">
+                      Save Order
+                    </Text>
+                  )}
+                </Pressable>
               </View>
-            }
-            data={[]}
-            keyboardShouldPersistTaps="handled"
-            scrollEnabled={!showSuggestions}
-          />
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
+
 
         {Platform.OS === 'ios' ? (
           showDatePicker && (

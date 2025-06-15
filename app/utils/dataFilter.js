@@ -74,7 +74,7 @@ export const filterOrdersByDateRange = (orders, selectedRangeKey) => {
     fiveDays: (daysAgo) => daysAgo <= 5,
     sevenDays: (daysAgo) => daysAgo > 5 && daysAgo <= 7,
     fifteenDays: (daysAgo) => daysAgo > 7 && daysAgo <= 15,
-    thirtyDays: (daysAgo) => daysAgo > 15 && daysAgo <= 30,
+    thirtyDays: (daysAgo) => daysAgo > 15 ,
   };
 
   return latestOrders

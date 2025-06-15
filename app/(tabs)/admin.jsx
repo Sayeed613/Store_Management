@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import PinModal from '../components/Aunthentication/PinModal';
 import { useTheme } from '../context/ThemeContextProvider';
+import AnalyticsOverview from '../screens/AnalyticsOverview';
 import { db } from '../services/firebase/config';
 
 const AdminCard = ({ title, description, icon, onPress, color, isDark }) => (
@@ -118,13 +119,6 @@ const Admin = () => {
 
   const adminFeatures = [
     {
-      title: 'Business Analytics',
-      description: 'View detailed sales reports and business metrics',
-      icon: 'insights',
-      color: '#3b82f6',
-      route: '../screens/AnalyticsOverview'
-    },
-    {
       title: 'Store Routes',
       description: 'View and manage delivery routes for stores',
       icon: 'alt-route',
@@ -155,7 +149,7 @@ const Admin = () => {
   if (!isAuthenticated) {
     return (
       <TouchableWithoutFeedback onPress={dismissKeyboard}>
-        <View className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
           <View className="flex-1 justify-center items-center p-4">
             <View className={`p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}>
               <Text className={`text-xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -180,9 +174,10 @@ const Admin = () => {
   return (
     <View className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <ScrollView className="p-4">
-        <View className="mb-6">
+        <AnalyticsOverview/>
+        <View className="mb-6 -mt-8">
           <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Welcome, {adminUser?.name}
+            Welcome, {adminUser?.name.toUpperCase()}
           </Text>
           <Text className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             Manage your store settings and configurations
