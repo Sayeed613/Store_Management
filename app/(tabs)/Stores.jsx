@@ -263,7 +263,7 @@ export default function Stores() {
   }
 
   return (
-    <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
+    <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
       <View className={`px-4 py-3 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
         <Text className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Stores

@@ -24,7 +24,7 @@ import { useTheme } from '../context/ThemeContextProvider';
 import { db } from '../services/firebase/config';
 
 const RouteCard = ({ route, isDark, onToggleStatus }) => (
-  <View className={`mb-4 px-5 py-4 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
+  <View className={`mb-4 px-5 py-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} `}>
     <View className="flex-row items-center justify-between">
       <View className="flex-row items-center gap-3">
         <MaterialIcons

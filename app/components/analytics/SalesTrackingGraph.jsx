@@ -1,7 +1,6 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, ScrollView, Text, View } from 'react-native';
-import { LineChart } from 'react-native-gifted-charts';
+import { LineChart } from 'react-native-chart-kit';
 import { useTheme } from '../../context/ThemeContextProvider';
 
 const SalesTrackingGraph = ({ transactions = [] }) => {
@@ -9,158 +8,248 @@ const SalesTrackingGraph = ({ transactions = [] }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const screenWidth = Dimensions.get('window').width - 48;
+  const chartWidth = Math.max(screenWidth, screenWidth * 1.5);
 
-  const [tooltipIndex, setTooltipIndex] = useState(null);
+  // State for tooltip info
+  const [tooltipPos, setTooltipPos] = useState({ visible: false, x: 0, y: 0, value: 0, label: '' });
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollToEnd({ animated: true });
+      }
     }, 500);
+
     return () => clearTimeout(timer);
   }, []);
 
-  // Processing transactions into chart-friendly format
-  const { lineData1, lineData2, labels } = useMemo(() => {
-    const months = new Array(6).fill(0).map((_, i) => {
-      const d = new Date();
-      d.setMonth(d.getMonth() - (5 - i));
-      return {
-        label: d.toLocaleString('default', { month: 'short' }),
-        timestamp: d.getTime(),
-        totalSales: 0,
-        creditSales: 0,
-      };
-    });
-
-    transactions.forEach(transaction => {
-      if (!transaction.orderDate) return;
-      let date;
-      try {
-        if (transaction.orderDate?.toDate) {
-          date = transaction.orderDate.toDate();
-        } else if (transaction.orderDate?.seconds) {
-          date = new Date(transaction.orderDate.seconds * 1000);
-        } else {
-          date = new Date(transaction.orderDate);
-        }
-
-        const month = date.toLocaleString('default', { month: 'short' });
-        const year = date.getFullYear();
-        const entry = months.find(m => m.label === month);
-        if (entry) {
-          const amount = Number(transaction.amount) || 0;
-          entry.totalSales += amount;
-          if (transaction.purchaseType === 'Credit') {
-            entry.creditSales += amount;
-          }
-        }
-      } catch (err) {
-        console.warn('Date parse error:', err);
+  const chartConfig = {
+    backgroundColor: 'transparent',
+    backgroundGradientFrom: isDark ? '#1f2937' : '#ffffff',
+    backgroundGradientTo: isDark ? '#1f2937' : '#ffffff',
+    decimalPlaces: 0,
+    color: (opacity = 1) => isDark ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`,
+    style: {
+      borderRadius: 16,
+    },
+    propsForDots: {
+      r: '6',
+      strokeWidth: '3',
+      stroke: isDark ? '#22c55e' : '#16a34a',
+      // Add shadow for better visibility
+      style: {
+        shadowColor: isDark ? '#000' : '#888',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.6,
+        shadowRadius: 4,
       }
-    });
+    },
+    propsForBackgroundLines: {
+      strokeDasharray: '', // Solid lines
+    },
+    propsForLabels: {
+      fontSize: 10,
+      fontWeight: '600',
+    },
+  };
 
-    const lineData1 = months.map((m, i) => ({
-      value: m.totalSales,
-      label: m.label.toUpperCase(),
-      labelTextStyle: { color: isDark ? '#fff' : '#000' },
-      frontColor: 'rgba(37, 99, 235, 1)', // blue
-      color: 'rgba(147, 197, 253, 0.5)',
-    }));
+  const processData = useMemo(() => {
+    try {
+      const last6Months = new Array(6).fill(0).map((_, index) => {
+        const date = new Date();
+        date.setMonth(date.getMonth() - (5 - index));
+        return {
+          month: date.toLocaleString('default', { month: 'short' }),
+          year: date.getFullYear(),
+          totalSales: 0,
+          creditSales: 0,
+          timestamp: date.getTime()
+        };
+      });
 
-    const lineData2 = months.map((m, i) => ({
-      value: m.creditSales,
-      frontColor: 'rgba(239, 68, 68, 1)', // red
-      color: 'rgba(252, 165, 165, 0.5)',
-    }));
+      transactions.forEach(transaction => {
+        if (!transaction.orderDate) return;
 
-    return { lineData1, lineData2, labels: months.map(m => m.label) };
+        let transDate;
+        try {
+          if (transaction.orderDate?.toDate) {
+            transDate = transaction.orderDate.toDate();
+          } else if (transaction.orderDate?.seconds) {
+            transDate = new Date(transaction.orderDate.seconds * 1000);
+          } else {
+            transDate = new Date(transaction.orderDate);
+          }
+          const monthYearKey = transDate.toLocaleString('default', { month: 'short' }) + transDate.getFullYear();
+          const monthData = last6Months.find(m =>
+            (m.month + m.year) === monthYearKey
+          );
+
+          if (monthData) {
+            const amount = Number(transaction.amount) || 0;
+            monthData.totalSales += amount;
+
+            if (transaction.purchaseType === 'Credit') {
+              monthData.creditSales += amount;
+            }
+          }
+        } catch (error) {
+          console.error('Transaction date processing error:', error, transaction);
+        }
+      });
+
+      return {
+        labels: last6Months.map(m => m.month),
+        datasets: [
+          {
+            data: last6Months.map(m => m.totalSales),
+            color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`, // green
+            strokeWidth: 3,
+            withShadow: true,
+            withArea: true,
+            gradientFrom: '#22c55e',
+            gradientTo: '#a7f3d0',
+          },
+          {
+            data: last6Months.map(m => m.creditSales),
+            color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`, // red
+            strokeWidth: 3,
+            withShadow: true,
+            withArea: true,
+            gradientFrom: '#ef4444',
+            gradientTo: '#fecaca',
+          }
+        ],
+        legend: ['Total Sales', 'Credit Sales']
+      };
+    } catch (error) {
+      console.error('Data processing error:', error);
+      return {
+        labels: [],
+        datasets: [{ data: [] }, { data: [] }],
+        legend: ['Total Sales', 'Credit Sales']
+      };
+    }
   }, [transactions]);
 
   const totals = useMemo(() => {
-    const now = new Date();
-    const thisMonth = now.getMonth();
-    const thisYear = now.getFullYear();
+    try {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
 
-    return transactions.reduce((acc, t) => {
-      let date;
-      try {
-        if (t.orderDate?.toDate) date = t.orderDate.toDate();
-        else if (t.orderDate?.seconds) date = new Date(t.orderDate.seconds * 1000);
-        else date = new Date(t.orderDate);
+      return transactions.reduce((acc, transaction) => {
+        if (!transaction.orderDate) return acc;
 
-        if (date.getMonth() === thisMonth && date.getFullYear() === thisYear) {
-          const amt = Number(t.amount) || 0;
-          acc.total += amt;
-          if (t.purchaseType === 'Credit') acc.credit += amt;
+        let transDate;
+        try {
+          if (transaction.orderDate?.toDate) {
+            transDate = transaction.orderDate.toDate();
+          } else if (transaction.orderDate?.seconds) {
+            transDate = new Date(transaction.orderDate.seconds * 1000);
+          } else {
+            transDate = new Date(transaction.orderDate);
+          }
+
+          if (transDate.getMonth() === currentMonth &&
+            transDate.getFullYear() === currentYear) {
+            const amount = Number(transaction.amount) || 0;
+            acc.monthTotal += amount;
+
+            if (transaction.purchaseType === 'Credit') {
+              acc.monthCredit += amount;
+            }
+          }
+        } catch (error) {
+          console.error('Transaction date processing error:', error);
         }
-      } catch {}
-      return acc;
-    }, { total: 0, credit: 0 });
+        return acc;
+      }, { monthTotal: 0, monthCredit: 0 });
+
+    } catch (error) {
+      console.error('Totals calculation error:', error);
+      return { monthTotal: 0, monthCredit: 0 };
+    }
   }, [transactions]);
 
   return (
     <View className={`rounded-xl p-4 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-      <View className="flex-row justify-between items-center mb-6">
-        <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          Monthly Sales Overview
-        </Text>
-        <MaterialCommunityIcons name="chart-line" size={22} color={isDark ? '#fff' : '#000'} />
-      </View>
+
 
       <View className="flex-row justify-between mb-6">
         <View className="flex-1 mr-2 p-3 rounded-xl bg-green-100">
           <Text className="text-xs text-green-800">Monthly Sales</Text>
           <Text className="text-sm font-bold text-green-800">
-            ₹{totals.total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+            ₹{totals.monthTotal.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
           </Text>
         </View>
         <View className="flex-1 ml-2 p-3 rounded-xl bg-red-100">
           <Text className="text-xs text-red-800">Credit Sales</Text>
           <Text className="text-sm font-bold text-red-800">
-            ₹{totals.credit.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+            ₹{totals.monthCredit.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
           </Text>
         </View>
       </View>
 
-      <ScrollView ref={scrollViewRef} horizontal showsHorizontalScrollIndicator={false} className="h-[280px]">
-        <View style={{ paddingRight: 32 }}>
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        className="h-[280px]"
+      >
+        <View>
           <LineChart
-            areaChart
-            curved
-            data={lineData1}
-            data2={lineData2}
-            thickness={3}
-            startFillColor1="rgba(37,99,235,0.6)" // Blue
-            endFillColor1="rgba(147,197,253,0.1)"
-            startFillColor2="rgba(239,68,68,0.6)" // Red
-            endFillColor2="rgba(252,165,165,0.1)"
-            yAxisTextStyle={{ color: isDark ? '#ccc' : '#444' }}
-            xAxisLabelTextStyle={{ color: isDark ? '#ccc' : '#444' }}
-            color1="rgba(37,99,235,1)"
-            color2="rgba(239,68,68,1)"
-            noOfSections={5}
-            animateOnDataChange
-            animationDuration={800}
-            onPointClick={(item, index) => setTooltipIndex(index)}
-            showVerticalLines
-            rulesColor={isDark ? '#333' : '#e5e7eb'}
-            xAxisColor={isDark ? '#333' : '#e5e7eb'}
-            yAxisColor={isDark ? '#333' : '#e5e7eb'}
+            data={processData}
+            width={chartWidth}
+            height={220}
+            chartConfig={chartConfig}
+            bezier
+            style={{
+              marginVertical: 8,
+              borderRadius: 16,
+            }}
+            withVerticalLines={false}
+            withHorizontalLines={true}
+            withDots={true}
+            withShadow={true}
+            withInnerLines={false}
+            yAxisLabel="₹"
+            yAxisInterval={1}
+            // Add onDataPointClick for tooltips
+            onDataPointClick={(data) => {
+              setTooltipPos({
+                visible: true,
+                x: data.x,
+                y: data.y,
+                value: data.value,
+                label: processData.labels[data.index],
+              });
+            }}
           />
+          {/* Tooltip */}
+          {tooltipPos.visible && (
+            <View
+              style={{
+                position: 'absolute',
+                left: tooltipPos.x - 30,
+                top: tooltipPos.y - 40,
+                backgroundColor: isDark ? '#111827' : '#f3f4f6',
+                padding: 6,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: isDark ? '#22c55e' : '#16a34a',
+                zIndex: 10,
+              }}
+            >
+              <Text style={{ color: isDark ? '#d1fae5' : '#065f46', fontWeight: '700' }}>
+                {tooltipPos.label}
+              </Text>
+              <Text style={{ color: isDark ? '#d1fae5' : '#065f46' }}>
+                ₹{tooltipPos.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
-
-      {/* Legend */}
-      <View className="flex-row justify-center items-center mt-4 space-x-6">
-        <View className="flex-row items-center space-x-2">
-          <View className="w-3 h-3 rounded-full bg-blue-600" />
-          <Text className="text-sm text-gray-700 dark:text-gray-300">Point 01</Text>
-        </View>
-        <View className="flex-row items-center space-x-2">
-          <View className="w-3 h-3 rounded-full bg-red-500" />
-          <Text className="text-sm text-gray-700 dark:text-gray-300">Point 02</Text>
-        </View>
-      </View>
 
       <Text className={`text-center text-sm mt-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
         {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}

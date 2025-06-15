@@ -228,7 +228,7 @@ const OrderHistory = () => {
   return (
     <>
       <ScrollView
-        className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}
+        className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
