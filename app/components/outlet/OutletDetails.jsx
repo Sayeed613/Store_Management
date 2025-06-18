@@ -198,27 +198,35 @@ export default function OutletDetail() {
     }
   };
 
-  const verifyPinAndDeactivate = async (enteredPin) => {
+const verifyPinAndDeactivate = async (enteredPin) => {
   try {
-    const querySnapshot = await getDocs(collection(db, 'users'));
-    const adminUsers = querySnapshot.docs.map(doc => doc.data());
+    const querySnapshot = await getDocs(
+      query(
+        collection(db, 'users'),
+        where('userType', '==', 'admin')
+      )
+    );
 
     // Check if entered PIN matches any admin PIN
-    const isPinValid = adminUsers.some(admin => admin.pin.toString() === enteredPin);
+    const isAdminPinValid = querySnapshot.docs.some(doc =>
+      doc.data().pin.toString() === enteredPin.toString()
+    );
 
-    if (isPinValid) {
-      await updateDoc(doc(db, 'outlets', params.id), {
-        status: 'inactive',
-        deactivatedAt: serverTimestamp(),
-      });
-      Alert.alert('Success', 'Outlet has been deactivated');
-      setShowPinModal(false);
+    if (!isAdminPinValid) {
+      Alert.alert('Error', 'Invalid admin PIN');
       setPinValues(['', '', '', '']);
-      router.back();
-    } else {
-      Alert.alert('Error', 'Incorrect PIN');
-      setPinValues(['', '', '', '']);
+      return;
     }
+
+    // If PIN is valid, proceed with deactivation
+    await updateDoc(doc(db, 'outlets', params.id), {
+      status: 'inactive',
+      deactivatedAt: serverTimestamp(),
+    });
+    Alert.alert('Success', 'Outlet has been deactivated');
+    setShowPinModal(false);
+    setPinValues(['', '', '', '']);
+    router.back();
   } catch (error) {
     console.error('Deactivation failed:', error);
     Alert.alert('Error', 'Failed to deactivate outlet');
@@ -595,7 +603,7 @@ export default function OutletDetail() {
   }
 
   return (
-    <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
+    <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
       {renderHeader()}
       <Animated.ScrollView
         onScroll={Animated.event(
@@ -626,9 +634,9 @@ export default function OutletDetail() {
 
       <Pressable
         onPress={() => setShowOrderModal(true)}
-        className="absolute bottom-8  left-1/2 -ml-12 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
+        className="absolute bottom-24 left-1/2 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
         style={{
-          transform: [{ translateX: -16 }],
+          transform: [{ translateX: -56 }],
           elevation: 5,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 2 },

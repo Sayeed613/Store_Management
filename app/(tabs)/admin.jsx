@@ -1,28 +1,28 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { collection, getDocs } from 'firebase/firestore';
+import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   Alert,
-  Keyboard,
   ScrollView,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
-  View
+  View,
 } from 'react-native';
-import PinModal from '../components/Aunthentication/PinModal';
+import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContextProvider';
 import AnalyticsOverview from '../screens/AnalyticsOverview';
-import { db } from '../services/firebase/config';
 
 const AdminCard = ({ title, description, icon, onPress, color, isDark }) => (
   <TouchableOpacity
     onPress={onPress}
-    className={`p-4 mb-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+    className={`p-4 mb-4 rounded-xl shadow-md ${isDark ? 'bg-gray-900' : 'bg-white'}`}
+    style={{ elevation: 3 }}
   >
     <View className="flex-row items-center">
-      <View className="p-3 rounded-lg bg-opacity-20" style={{ backgroundColor: `${color}20` }}>
+      <View
+        className="p-3 rounded-lg"
+        style={{ backgroundColor: `${color}20` }}
+      >
         <MaterialIcons name={icon} size={24} color={color} />
       </View>
       <View className="ml-4 flex-1">
@@ -36,86 +36,48 @@ const AdminCard = ({ title, description, icon, onPress, color, isDark }) => (
       <MaterialIcons
         name="chevron-right"
         size={24}
-        color={isDark ? '#6b7280' : '#9ca3af'}
+        color={isDark ? '#9ca3af' : '#6b7280'}
       />
     </View>
   </TouchableOpacity>
 );
 
-
 const Admin = () => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const router = useRouter();
-  const [pinValues, setPinValues] = useState(['', '', '', '']);
-  const [adminUser, setAdminUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user, logout } = useAuth();
   const [loading, setLoading] = useState(true);
+  const isAdmin = Boolean(user?.userType?.toLowerCase()?.trim() === 'admin');
 
   useEffect(() => {
-    fetchAdminUser();
-  }, []);
-
-  const fetchAdminUser = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      const user = querySnapshot.docs[0]?.data();
-      setAdminUser(user);
-    } catch (error) {
-      console.error('Error fetching admin:', error);
-      Alert.alert('Error', 'Failed to fetch user data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePinChange = (index, value) => {
-    const newPinValues = [...pinValues];
-    newPinValues[index] = value;
-    setPinValues(newPinValues);
-
-    if (index === 3 && value !== '') {
-      const enteredPin = newPinValues.join('');
-      verifyPin(enteredPin);
-    }
-  };
-
-  const dismissKeyboard = () => {
-    Keyboard.dismiss();
-  };
-
-  const verifyPin = async (enteredPin) => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      const users = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      // Check if any user's PIN matches
-      const matchingUser = users.find(user => user.pin === enteredPin);
-
-      if (matchingUser) {
-        setIsAuthenticated(true);
-        // Set the matching user instead of the first user
-        setAdminUser(matchingUser);
-        setPinValues(['', '', '', '']);
-      } else {
-        Alert.alert('Error', 'Incorrect PIN');
-        setPinValues(['', '', '', '']);
-      }
-    } catch (error) {
-      console.error('PIN verification failed:', error);
-      Alert.alert('Error', 'Failed to verify PIN');
-      setPinValues(['', '', '', '']);
-    }
-  };
-
-  // Remove or modify the fetchAdminUser function since we don't need it anymore
-  useEffect(() => {
-    // We can remove this effect or use it for other initialization
     setLoading(false);
   }, []);
+
+  if (!isAdmin) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
 
   const adminFeatures = [
     {
@@ -123,72 +85,69 @@ const Admin = () => {
       description: 'View and manage delivery routes for stores',
       icon: 'alt-route',
       color: '#10b981',
-      route: '../screens/Route'
+      route: '../screens/Route',
     },
     {
       title: 'User Management',
       description: 'Manage admin access and PIN settings',
       icon: 'manage-accounts',
       color: '#8b5cf6',
-      route: '../screens/Users'
+      route: '../screens/Users',
     },
     {
       title: 'Inactive Stores',
       description: 'View and reactivate deactivated stores',
       icon: 'store',
       color: '#ec4899',
-      route: '../screens/InActiveStores'
-    }
+      route: '../screens/InActiveStores',
+    },
   ];
 
-
-
-
-
-
-  if (!isAuthenticated) {
+  if (loading) {
     return (
-      <TouchableWithoutFeedback onPress={dismissKeyboard}>
-        <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
-          <View className="flex-1 justify-center items-center p-4">
-            <View className={`p-8 rounded-3xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}>
-              <Text className={`text-xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Admin Access
-              </Text>
-              <Text className={`text-sm text-center mb-8 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Enter your PIN to continue
-              </Text>
-
-              <PinModal
-                values={pinValues}
-                onChange={handlePinChange}
-                isDark={isDark}
-              />
-            </View>
-          </View>
-        </View>
-      </TouchableWithoutFeedback>
+      <View className={`flex-1 justify-center items-center ${isDark ? 'bg-black' : 'bg-gray-50'}`}>
+        <Text className={isDark ? 'text-white' : 'text-gray-900'}>Loading...</Text>
+      </View>
     );
   }
 
   return (
-    <View className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <ScrollView className="p-4">
-        <AnalyticsOverview/>
-        <View className="mb-6 -mt-8">
-          <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Welcome, {adminUser?.name.toUpperCase()}
-          </Text>
-          <Text className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            Manage your store settings and configurations
+    <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-50'}`}>
+      <ScrollView className="p-4" contentContainerStyle={{
+            paddingBottom: 70
+          }}>
+        <AnalyticsOverview />
+
+        <View className="mb-6">
+          <View className="flex-row justify-between items-center">
+            <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Welcome, {user?.name?.toUpperCase()}
+            </Text>
+
+            <TouchableOpacity
+              onPress={handleLogout}
+              className={`flex-row items-center p-4 rounded-xl shadow-md ${isDark ? 'bg-gray-900' : 'bg-white'}`}
+              style={{ elevation: 3 }}
+            >
+              <View className="p-3 rounded-lg bg-red-100">
+                <MaterialIcons name="logout" size={24} color="#ef4444" />
+              </View>
+            </TouchableOpacity>
+          </View>
+          <Text className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            Manage your application settings
           </Text>
         </View>
 
-        <View>
+        {/* Feature Cards */}
+        <View className="mb-10">
           {adminFeatures.map((feature, index) => (
             <AdminCard
               key={index}
-              {...feature}
+              title={feature.title}
+              description={feature.description}
+              icon={feature.icon}
+              color={feature.color}
               isDark={isDark}
               onPress={() => router.push(feature.route)}
             />
@@ -196,7 +155,6 @@ const Admin = () => {
         </View>
       </ScrollView>
     </View>
-
   );
 };
 

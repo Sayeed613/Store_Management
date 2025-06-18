@@ -376,10 +376,12 @@ const AddOutlet = () => {
   // Render
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-      <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
+      <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
         <ScrollView
           className="flex-1"
-          contentContainerStyle={{ padding: 16 }}
+          contentContainerStyle={{ padding: 16 ,
+            paddingBottom: 70
+          }}
           keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl

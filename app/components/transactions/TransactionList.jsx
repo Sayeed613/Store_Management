@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
@@ -98,28 +98,35 @@ const TransactionItem = ({ transaction, isDark, onDelete, onAddPayment, index })
     ? isDark ? 'border-l-4 border-green-400' : 'border-l-4 border-green-600'
     : isDark ? 'border-l-4 border-red-400' : 'border-l-4 border-red-600';
 
-  const verifyPinAndDelete = async (enteredPin) => {
+// Update the verifyPinAndDelete function
+const verifyPinAndDelete = async (enteredPin) => {
   try {
-    const querySnapshot = await getDocs(collection(db, 'users'));
-    const users = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const querySnapshot = await getDocs(
+      query(
+        collection(db, 'users'),
+        where('userType', '==', 'admin')
+      )
+    );
 
-    // Check if any user's PIN matches
-    const matchingUser = users.find(user => user.pin === enteredPin);
+    // Check if entered PIN matches any admin PIN
+    const isAdminPinValid = querySnapshot.docs.some(doc =>
+      doc.data().pin.toString() === enteredPin.toString()
+    );
 
-    if (matchingUser) {
-      onDelete?.(transaction.id);
-      setShowPinModal(false);
+    if (!isAdminPinValid) {
+      Alert.alert('Error', 'Invalid admin PIN');
       setPinValues(['', '', '', '']);
-    } else {
-      Alert.alert('Error', 'Incorrect PIN');
-      setPinValues(['', '', '', '']);
+      return;
     }
+
+    // If we reach here, admin PIN is valid
+    onDelete(transaction.id);
+    setShowPinModal(false);
+    setPinValues(['', '', '', '']);
   } catch (error) {
-    console.error('PIN verification error:', error);
-    Alert.alert('Error', 'Failed to verify PIN');
+    console.error('Delete operation failed:', error);
+    Alert.alert('Error', 'Failed to delete transaction');
+    setPinValues(['', '', '', '']);
   }
 };
 

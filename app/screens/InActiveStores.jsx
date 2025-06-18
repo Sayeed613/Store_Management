@@ -171,7 +171,7 @@ const InActiveStores = () => {
         ListEmptyComponent={
           <View className="flex-1 items-center justify-center p-4">
             <MaterialIcons
-              name="store-off"
+              name="store"
               size={48}
               color={isDark ? '#4b5563' : '#9ca3af'}
             />

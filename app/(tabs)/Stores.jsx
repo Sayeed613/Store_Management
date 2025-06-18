@@ -81,7 +81,6 @@ export default function Stores() {
         }));
 
         const activeOutlets = outletList.filter(o => o.status === 'active');
-        console.log('Filtered active outlets:', activeOutlets);
 
         setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
         setHasMore(snapshot.docs.length === ITEMS_PER_PAGE);
@@ -263,7 +262,7 @@ export default function Stores() {
   }
 
   return (
-    <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
+    <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
       <View className={`px-4 py-3 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
         <Text className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Stores
@@ -293,11 +292,11 @@ export default function Stores() {
         }
       />
 
-      <Pressable
+       <Pressable
         onPress={() => setShowOrderModal(true)}
-        className="absolute bottom-8 left-1/2 -ml-12 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
+        className="absolute bottom-24 left-1/2 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
         style={{
-          transform: [{ translateX: -16 }],
+          transform: [{ translateX: -56 }],
           elevation: 5,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 2 },

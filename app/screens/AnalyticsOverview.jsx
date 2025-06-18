@@ -11,7 +11,7 @@ const CARD_WIDTH = (SCREEN_WIDTH - 32) / 2;
 
 const StatCard = ({ title, value, count, icon, color, isDark }) => (
   <View
-    className={`mb-4 p-4 rounded-2xl ${isDark ? 'bg-gray-800/90' : 'bg-white'}`}
+    className={`mb-4 p-4 rounded-2xl ${isDark ? 'bg-black' : 'bg-white'}`}
     style={{
       width: CARD_WIDTH - 8,
       shadowColor: isDark ? '#000' : '#475569',
@@ -98,7 +98,7 @@ const AnalyticsOverview = () => {
   }
 
   return (
-    <SafeAreaView className={`flex-1  ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+    <SafeAreaView className={`flex-1  ${isDark ? 'bg-black' : 'bg-gray-50'}`}>
       <ScrollView className="px-2 -mt-10" showsVerticalScrollIndicator={false}>
         <View className="py-2">
           <Text className={`text-2xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>

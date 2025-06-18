@@ -228,7 +228,7 @@ const OrderHistory = () => {
   return (
     <>
       <ScrollView
-        className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}
+        className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -263,9 +263,9 @@ const OrderHistory = () => {
 
       <Pressable
         onPress={() => setShowOrderModal(true)}
-        className="absolute bottom-8 left-1/2 -ml-12 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
+          className="absolute bottom-24 left-1/2 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
         style={{
-          transform: [{ translateX: -16 }],
+          transform: [{ translateX: -56 }],
           elevation: 5,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 2 },
