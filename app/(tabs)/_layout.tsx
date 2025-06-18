@@ -7,7 +7,6 @@ import ProtectedRoute from '../components/Routes/ProtectedRoute';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from "../context/ThemeContextProvider";
 
-// Define the user type
 type User = {
   name?: string;
   userType?: string;
@@ -19,11 +18,9 @@ export default function Layout() {
   const isDark = theme === "dark";
   const router = useRouter();
 
-  // Check if user is admin
   const normalizedUserType = user?.userType?.toLowerCase()?.trim() || '';
   const isAdmin = normalizedUserType === 'admin';
 
-  // Handle logout
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -89,7 +86,6 @@ export default function Layout() {
             }}
           />
 
-          {/* Add Store Tab */}
           <Tabs.Screen
             name="add-outlet"
             options={{
@@ -100,7 +96,6 @@ export default function Layout() {
             }}
           />
 
-          {/* Stores Tab */}
           <Tabs.Screen
             name="Stores"
             options={{
@@ -111,8 +106,7 @@ export default function Layout() {
             }}
           />
 
-          {/* Settings Tab */}
-          <Tabs.Screen
+=          <Tabs.Screen
             name="settings"
             options={{
               tabBarLabel: "Settings",
@@ -158,7 +152,6 @@ export default function Layout() {
             />
           )}
 
-          {/* Admin Tab - Only show for admin users */}
           {isAdmin && (
             <Tabs.Screen
               name="admin"

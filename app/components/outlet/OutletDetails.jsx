@@ -200,6 +200,8 @@ export default function OutletDetail() {
 
 const verifyPinAndDeactivate = async (enteredPin) => {
   try {
+
+
     const querySnapshot = await getDocs(
       query(
         collection(db, 'users'),
@@ -207,10 +209,14 @@ const verifyPinAndDeactivate = async (enteredPin) => {
       )
     );
 
-    // Check if entered PIN matches any admin PIN
-    const isAdminPinValid = querySnapshot.docs.some(doc =>
-      doc.data().pin.toString() === enteredPin.toString()
-    );
+    const isAdminPinValid = querySnapshot.docs.some(doc => {
+      const userData = doc.data();
+
+      if (userData.pin === enteredPin) return true;
+      const trimmedStored = userData.pin ? userData.pin.trim() : '';
+      const trimmedEntered = enteredPin ? enteredPin.trim() : '';
+      return trimmedStored === trimmedEntered;
+    });
 
     if (!isAdminPinValid) {
       Alert.alert('Error', 'Invalid admin PIN');

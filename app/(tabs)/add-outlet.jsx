@@ -157,103 +157,111 @@ const AddOutlet = () => {
   };
 
   const verifyPinAndActivate = async (enteredPin) => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      const users = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+  try {
+    const querySnapshot = await getDocs(
+      query(
+        collection(db, 'users'),
+        where('userType', '==', 'admin')
+      )
+    );
 
-      const matchingUser = users.find(user => user.pin === enteredPin);
+    const isAdminPinValid = querySnapshot.docs.some(doc => {
+      const userData = doc.data();
+      const storedPin = userData.pin?.replace(/[\s\r\n]+/g, '');
+      const cleanEnteredPin = enteredPin?.replace(/[\s\r\n]+/g, '');
+      return storedPin === cleanEnteredPin;
+    });
 
-      if (matchingUser) {
-        const outletData = {
-          propName: `${formData.firstName} ${formData.lastName}`.trim(),
-          phoneNumber: `+91${formData.phoneNumber}`,
-          storeName: formData.storeName,
-          route: formData.route,
-          street: formData.street || '',
-          locality: formData.locality || '',
-          landmark: formData.landmark || '',
-          address: [formData.street, formData.locality, formData.landmark].filter(Boolean).join(', '),
-          location: formData.location,
-          creditLimit: formData.creditLimit || '0',
-          status: 'active',
-          updatedAt: serverTimestamp(),
-          reactivatedBy: matchingUser.id,
-          reactivatedAt: serverTimestamp()
-        };
-
-        Object.keys(outletData).forEach(key =>
-          outletData[key] === undefined && delete outletData[key]
-        );
-
-        await updateDoc(doc(db, 'outlets', existingOutlet.id), outletData);
-        Alert.alert('Success', 'Outlet has been reactivated');
-        setShowPinModal(false);
-        setPinValues(['', '', '', '']);
-        setExistingOutlet(null);
-        resetForm();
-        router.replace('/(tabs)');
-      } else {
-        Alert.alert('Error', 'Incorrect PIN');
-        setPinValues(['', '', '', '']);
-      }
-    } catch (error) {
-      console.error('PIN verification failed:', error);
-      Alert.alert('Error', 'Failed to verify PIN');
+    if (!isAdminPinValid) {
+      Alert.alert('Error', 'Invalid admin PIN');
       setPinValues(['', '', '', '']);
-    }
-  };
-
-  const handleSubmit = async () => {
-    const fullPhoneNumber = formData.phoneNumber ? `+91${formData.phoneNumber}` : '';
-
-    if (!formData.storeName || !fullPhoneNumber || !formData.location || !formData.route || !formData.creditLimit) {
-      Alert.alert(
-        'Missing Information',
-        'Please fill all required fields including store name, phone number, location, route and credit limit'
-      ); return;
+      return;
     }
 
-    setSaveLoading(true);
-    try {
-      if (!params.outletId) {
-        const { exists, outlet } = await phoneExists(fullPhoneNumber);
-        if (exists) {
-          if (outlet.status === 'inactive') {
-            setExistingOutlet(outlet);
-            Alert.alert(
-              'Inactive Outlet Found',
-              'This outlet exists but is inactive. Would you like to reactivate it?',
-              [
-                {
-                  text: 'Cancel',
-                  style: 'cancel',
-                  onPress: () => {
-                    setSaveLoading(false);
-                    setExistingOutlet(null);
-                  }
-                },
-                {
-                  text: 'Reactivate',
-                  onPress: () => {
-                    setSaveLoading(false);
-                    setShowPinModal(true);
-                  }
-                }
-              ]
-            );
-            return;
-          } else {
-            Alert.alert('Duplicate Entry', 'An active outlet with this phone number already exists.');
-            setSaveLoading(false);
-            return;
-          }
+    const outletData = {
+      propName: `${formData.firstName} ${formData.lastName}`.trim(),
+      phoneNumber: `+91${formData.phoneNumber}`,
+      storeName: formData.storeName,
+      route: formData.route,
+      street: formData.street || '',
+      locality: formData.locality || '',
+      landmark: formData.landmark || '',
+      address: [formData.street, formData.locality, formData.landmark].filter(Boolean).join(', '),
+      location: formData.location,
+      creditLimit: formData.creditLimit || '0',
+      status: 'active',
+      updatedAt: serverTimestamp(),
+      reactivatedBy: querySnapshot.docs[0].id,
+      reactivatedAt: serverTimestamp()
+    };
+
+    await updateDoc(doc(db, 'outlets', existingOutlet.id), outletData);
+    Alert.alert('Success', 'Outlet has been reactivated');
+    setShowPinModal(false);
+    setPinValues(['', '', '', '']);
+    setExistingOutlet(null);
+    resetForm();
+    router.replace('/(tabs)');
+  } catch (error) {
+    Alert.alert('Error', 'Failed to reactivate outlet');
+    setPinValues(['', '', '', '']);
+  }
+};
+
+const handleSubmit = async () => {
+  const fullPhoneNumber = formData.phoneNumber ? `+91${formData.phoneNumber}` : '';
+
+  if (!formData.storeName || !fullPhoneNumber || !formData.location || !formData.route || !formData.creditLimit) {
+    Alert.alert(
+      'Missing Information',
+      'Please fill all required fields including store name, phone number, location, route and credit limit'
+    );
+    return;
+  }
+
+  setSaveLoading(true);
+  try {
+    if (!params.outletId) {
+      const { exists, outlet } = await phoneExists(fullPhoneNumber);
+      if (exists) {
+        setSaveLoading(false);
+        if (outlet.status === 'inactive') {
+          setExistingOutlet(outlet);
+          setFormData({
+            ...formData,
+            firstName: outlet.propName.split(' ')[0] || '',
+            lastName: outlet.propName.split(' ').slice(1).join(' ') || '',
+            storeName: outlet.storeName,
+            route: outlet.route,
+            street: outlet.street || '',
+            locality: outlet.locality || '',
+            landmark: outlet.landmark || '',
+            location: outlet.location,
+            creditLimit: outlet.creditLimit
+          });
+          Alert.alert(
+            'Inactive Outlet Found',
+            'This outlet exists but is inactive. Would you like to reactivate it with updated information?',
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel',
+                onPress: () => setExistingOutlet(null)
+              },
+              {
+                text: 'Reactivate',
+                onPress: () => setShowPinModal(true)
+              }
+            ]
+          );
+          return;
+        } else {
+          Alert.alert('Duplicate Entry', 'An active outlet with this phone number already exists.');
+          return;
         }
       }
-
-      const outletData = {
+    }
+ const outletData = {
         propName: `${formData.firstName} ${formData.lastName}`.trim(),
         phoneNumber: fullPhoneNumber,
         storeName: formData.storeName,
@@ -280,14 +288,12 @@ const AddOutlet = () => {
         resetForm();
       }
 
-      router.replace('/(tabs)');
-    } catch (error) {
-      console.error('Error:', error);
-      Alert.alert('Error', 'Failed to save outlet');
-    } finally {
-      setSaveLoading(false);
-    }
-  };
+      router.replace('/(tabs)')  } catch (error) {
+    Alert.alert('Error', 'Failed to save outlet');
+  } finally {
+    setSaveLoading(false);
+  }
+};
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
