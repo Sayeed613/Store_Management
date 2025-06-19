@@ -228,7 +228,7 @@ const OrderHistory = () => {
     <>
       {/* Fixed Header & Filters */}
       <View
-        className={`absolute top-0 left-0 right-0 z-10 px-4 pt-6 pb-4 ${isDark ? 'bg-black' : 'bg-white'} shadow`}
+        className={`absolute top-0 left-0 right-0 z-10 px-4 pt-6 pb-2 ${isDark ? 'bg-black' : 'bg-white'} shadow`}
         style={{ elevation: 3 }}
       >
         <Text className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -242,7 +242,7 @@ const OrderHistory = () => {
       {/* Scrollable Order List */}
       <ScrollView
         className={`flex-1  ${isDark ? 'bg-black' : 'bg-gray-100'}`}
-        contentContainerStyle={{ paddingTop: 140, paddingBottom: 70 }}
+        contentContainerStyle={{ paddingTop: 120, paddingBottom: 70 }}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
