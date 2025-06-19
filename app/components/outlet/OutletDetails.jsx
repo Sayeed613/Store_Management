@@ -4,7 +4,7 @@ import {
   collection, deleteDoc, doc,
   getDocs,
   onSnapshot,
-  orderBy, query, serverTimestamp, updateDoc, where
+  orderBy, query, serverTimestamp, updateDoc, where, writeBatch
 } from 'firebase/firestore';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -16,6 +16,7 @@ import {
 import Modal from 'react-native-modal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ROUTES } from '../../constants/outlet.constants';
+import { useAuth } from "../../context/AuthContext";
 import { useTheme } from '../../context/ThemeContextProvider';
 import { db } from '../../services/firebase/config';
 import SalesTrackingGraph from '../analytics/SalesTrackingGraph';
@@ -29,6 +30,9 @@ export default function OutletDetail() {
   const params = useLocalSearchParams();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+
+  const { user } = useAuth();
+  const isAdmin = user?.userType?.toLowerCase() === 'admin';
 
   const [locationData, setLocationData] = useState(null);
   const [outletData, setOutletData] = useState(null);
@@ -198,9 +202,10 @@ export default function OutletDetail() {
     }
   };
 
-const verifyPinAndDeactivate = async (enteredPin) => {
-  try {
 
+  const verifyPinAndDeactivate = async (enteredPin) => {
+  try {
+    setIsDeactivating(true);
 
     const querySnapshot = await getDocs(
       query(
@@ -211,8 +216,6 @@ const verifyPinAndDeactivate = async (enteredPin) => {
 
     const isAdminPinValid = querySnapshot.docs.some(doc => {
       const userData = doc.data();
-
-      if (userData.pin === enteredPin) return true;
       const trimmedStored = userData.pin ? userData.pin.trim() : '';
       const trimmedEntered = enteredPin ? enteredPin.trim() : '';
       return trimmedStored === trimmedEntered;
@@ -224,19 +227,39 @@ const verifyPinAndDeactivate = async (enteredPin) => {
       return;
     }
 
-    // If PIN is valid, proceed with deactivation
-    await updateDoc(doc(db, 'outlets', params.id), {
+    // Delete all related transactions first
+    const salesQuery = query
+    (collection(db, 'sales'),
+      where('outletId', '==', params.id)
+    );
+    const salesSnapshot = await getDocs(salesQuery);
+
+    // Create a batch for bulk operations
+    const batch = writeBatch(db);
+
+    // Add all transaction deletions to batch
+    salesSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+
+    // Add outlet deactivation to batch
+    batch.update(doc(db, 'outlets', params.id), {
       status: 'inactive',
       deactivatedAt: serverTimestamp(),
     });
-    Alert.alert('Success', 'Outlet has been deactivated');
+
+    // Commit the batch
+    await batch.commit();
+
+    Alert.alert('Success', 'Outlet has been deactivated and all related transactions have been deleted');
     setShowPinModal(false);
     setPinValues(['', '', '', '']);
     router.back();
   } catch (error) {
     console.error('Deactivation failed:', error);
     Alert.alert('Error', 'Failed to deactivate outlet');
-    setPinValues(['', '', '', '']);
+  } finally {
+    setIsDeactivating(false);
   }
 };
 
@@ -372,12 +395,25 @@ const verifyPinAndDeactivate = async (enteredPin) => {
           >
             <MaterialIcons name="edit" size={20} color={isDark ? '#fff' : '#374151'} />
           </Pressable>
-          <Pressable
-            onPress={() => setShowPinModal(true)}
-            className="p-2 rounded-full bg-red-500"
-          >
-            <MaterialIcons name="delete" size={20} color="#fff" />
-          </Pressable>
+         {isAdmin ? (
+  <Pressable
+    onPress={() => setShowPinModal(true)}
+    className="p-2 rounded-full bg-red-500"
+  >
+    <MaterialIcons name="delete" size={20} color="#fff" />
+  </Pressable>
+) : (
+  <Pressable
+    onPress={() => Alert.alert(
+      'Permission Denied',
+      'Please contact your administrator to deactivate this outlet.',
+      [{ text: 'OK' }]
+    )}
+    className="p-2 rounded-full bg-gray-500"
+  >
+    <MaterialIcons name="delete" size={20} color="#fff" />
+  </Pressable>
+)}
         </View>
       </View>
 

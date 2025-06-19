@@ -12,9 +12,11 @@ import {
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useAuth } from "../../context/AuthContext";
 import { db } from '../../services/firebase/config';
 import PinModal from '../Aunthentication/PinModal';
 import PaymentModal from './PaymentModal';
+
 
 const formatDate = (date) => {
   if (!date) return 'N/A';
@@ -94,11 +96,14 @@ const TransactionItem = ({ transaction, isDark, onDelete, onAddPayment, index })
   const remainingAmount = transaction.amount - totalPaid;
   const completed = remainingAmount <= 0;
 
+const { user } = useAuth();
+const isAdmin = user?.userType?.toLowerCase() === 'admin';
+
   const borderClass = completed
     ? isDark ? 'border-l-4 border-green-400' : 'border-l-4 border-green-600'
     : isDark ? 'border-l-4 border-red-400' : 'border-l-4 border-red-600';
 
-// Update the verifyPinAndDelete function
+// Replace the existing verifyPinAndDelete function with:
 const verifyPinAndDelete = async (enteredPin) => {
   try {
     const querySnapshot = await getDocs(
@@ -108,10 +113,16 @@ const verifyPinAndDelete = async (enteredPin) => {
       )
     );
 
-    // Check if entered PIN matches any admin PIN
-    const isAdminPinValid = querySnapshot.docs.some(doc =>
-      doc.data().pin.toString() === enteredPin.toString()
-    );
+    const isAdminPinValid = querySnapshot.docs.some(doc => {
+      const userData = doc.data();
+      if (!userData.pin) return false;
+
+      // Convert both PINs to strings and trim them
+      const storedPin = userData.pin.toString().trim();
+      const inputPin = enteredPin.toString().trim();
+
+      return storedPin === inputPin;
+    });
 
     if (!isAdminPinValid) {
       Alert.alert('Error', 'Invalid admin PIN');
@@ -119,10 +130,11 @@ const verifyPinAndDelete = async (enteredPin) => {
       return;
     }
 
-    // If we reach here, admin PIN is valid
+    // If PIN is valid, proceed with deletion
     onDelete(transaction.id);
     setShowPinModal(false);
     setPinValues(['', '', '', '']);
+
   } catch (error) {
     console.error('Delete operation failed:', error);
     Alert.alert('Error', 'Failed to delete transaction');
@@ -141,19 +153,28 @@ const verifyPinAndDelete = async (enteredPin) => {
   };
 
   const handleDelete = () => {
+  if (!isAdmin) {
     Alert.alert(
-      'Delete Transaction',
-      'Are you sure you want to delete this transaction?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          onPress: () => setShowPinModal(true),
-          style: 'destructive'
-        }
-      ]
+      'Permission Denied',
+      'Please contact your administrator to delete transactions.',
+      [{ text: 'OK' }]
     );
-  };
+    return;
+  }
+
+  Alert.alert(
+    'Delete Transaction',
+    'Are you sure you want to delete this transaction?',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        onPress: () => setShowPinModal(true),
+        style: 'destructive'
+      }
+    ]
+  );
+};
 
   const renderRightActions = () => (
     <Pressable

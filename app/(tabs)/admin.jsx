@@ -121,7 +121,7 @@ const Admin = () => {
         <View className="mb-6">
           <View className="flex-row justify-between items-center">
             <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Welcome, {user?.name?.toUpperCase()}
+              Welcome, {user?.name}
             </Text>
 
             <TouchableOpacity

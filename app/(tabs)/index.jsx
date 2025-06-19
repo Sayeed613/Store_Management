@@ -103,7 +103,6 @@ const OrderHistory = () => {
     };
   }, []);
 
-
   const onRefresh = useCallback(() => {
     setIsRefreshing(true);
     setTimeout(() => setIsRefreshing(false), 1000);
@@ -227,8 +226,23 @@ const OrderHistory = () => {
 
   return (
     <>
+      {/* Fixed Header & Filters */}
+      <View
+        className={`absolute top-0 left-0 right-0 z-10 px-4 pt-6 pb-4 ${isDark ? 'bg-black' : 'bg-white'} shadow`}
+        style={{ elevation: 3 }}
+      >
+        <Text className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Sales History
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {Object.keys(dateRanges).map(renderDateRangeButton)}
+        </ScrollView>
+      </View>
+
+      {/* Scrollable Order List */}
       <ScrollView
-        className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}
+        className={`flex-1  ${isDark ? 'bg-black' : 'bg-gray-100'}`}
+        contentContainerStyle={{ paddingTop: 140, paddingBottom: 70 }}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -237,33 +251,24 @@ const OrderHistory = () => {
           />
         }
       >
-        <View className="p-4">
-          <Text className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Sales History
-          </Text>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
-            {Object.keys(dateRanges).map(renderDateRangeButton)}
-          </ScrollView>
-
-          <View className="mt-2">
-            {filteredOrders.length === 0 ? (
-              <View className={`p-8 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} items-center`}>
-                <MaterialIcons name="receipt-long" size={48} color={isDark ? '#4b5563' : '#9ca3af'} />
-                <Text className={`mt-2 text-base ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  No orders found from active stores
-                </Text>
-              </View>
-            ) : (
-              filteredOrders.map(renderOrderCard)
-            )}
-          </View>
+        <View className="px-4 mt-2 ">
+          {filteredOrders.length === 0 ? (
+            <View className={`p-8 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} items-center`}>
+              <MaterialIcons name="receipt-long" size={48} color={isDark ? '#4b5563' : '#9ca3af'} />
+              <Text className={`mt-2 text-base ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                No orders found from active stores
+              </Text>
+            </View>
+          ) : (
+            filteredOrders.map(renderOrderCard)
+          )}
         </View>
       </ScrollView>
 
+      {/* Add Sale Floating Button */}
       <Pressable
         onPress={() => setShowOrderModal(true)}
-          className="absolute bottom-24 left-1/2 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
+        className="absolute bottom-24 left-1/2 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
         style={{
           transform: [{ translateX: -56 }],
           elevation: 5,
