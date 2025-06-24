@@ -53,141 +53,116 @@ const SalesTrackingGraph = ({ transactions = [] }) => {
     },
   };
 
-  const processData = useMemo(() => {
-    try {
-      const last6Months = new Array(6).fill(0).map((_, index) => {
-        const date = new Date();
-        date.setMonth(date.getMonth() - (5 - index));
-        return {
-          month: date.toLocaleString('default', { month: 'short' }),
-          year: date.getFullYear(),
-          totalSales: 0,
-          creditSales: 0,
-          timestamp: date.getTime()
-        };
-      });
-
-      transactions.forEach(transaction => {
-        if (!transaction.orderDate) return;
-
-        let transDate;
-        try {
-          if (transaction.orderDate?.toDate) {
-            transDate = transaction.orderDate.toDate();
-          } else if (transaction.orderDate?.seconds) {
-            transDate = new Date(transaction.orderDate.seconds * 1000);
-          } else {
-            transDate = new Date(transaction.orderDate);
-          }
-          const monthYearKey = transDate.toLocaleString('default', { month: 'short' }) + transDate.getFullYear();
-          const monthData = last6Months.find(m =>
-            (m.month + m.year) === monthYearKey
-          );
-
-          if (monthData) {
-            const amount = Number(transaction.amount) || 0;
-            monthData.totalSales += amount;
-
-            if (transaction.purchaseType === 'Credit') {
-              monthData.creditSales += amount;
-            }
-          }
-        } catch (error) {
-          console.error('Transaction date processing error:', error, transaction);
-        }
-      });
-
+ const processData = useMemo(() => {
+  try {
+    const last6Months = new Array(6).fill(0).map((_, index) => {
+      const date = new Date();
+      date.setMonth(date.getMonth() - (5 - index));
       return {
-        labels: last6Months.map(m => m.month),
-        datasets: [
-          {
-            data: last6Months.map(m => m.totalSales),
-            color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`, // green
-            strokeWidth: 3,
-            withShadow: true,
-            withArea: true,
-            gradientFrom: '#22c55e',
-            gradientTo: '#a7f3d0',
-          },
-          {
-            data: last6Months.map(m => m.creditSales),
-            color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`, // red
-            strokeWidth: 3,
-            withShadow: true,
-            withArea: true,
-            gradientFrom: '#ef4444',
-            gradientTo: '#fecaca',
-          }
-        ],
-        legend: ['Total Sales', 'Credit Sales']
+        month: date.toLocaleString('default', { month: 'short' }),
+        year: date.getFullYear(),
+        totalSales: 0,
+        timestamp: date.getTime()
       };
-    } catch (error) {
-      console.error('Data processing error:', error);
-      return {
-        labels: [],
-        datasets: [{ data: [] }, { data: [] }],
-        legend: ['Total Sales', 'Credit Sales']
-      };
-    }
-  }, [transactions]);
+    });
 
-  const totals = useMemo(() => {
-    try {
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
+    transactions.forEach(transaction => {
+      if (!transaction.orderDate) return;
 
-      return transactions.reduce((acc, transaction) => {
-        if (!transaction.orderDate) return acc;
-
-        let transDate;
-        try {
-          if (transaction.orderDate?.toDate) {
-            transDate = transaction.orderDate.toDate();
-          } else if (transaction.orderDate?.seconds) {
-            transDate = new Date(transaction.orderDate.seconds * 1000);
-          } else {
-            transDate = new Date(transaction.orderDate);
-          }
-
-          if (transDate.getMonth() === currentMonth &&
-            transDate.getFullYear() === currentYear) {
-            const amount = Number(transaction.amount) || 0;
-            acc.monthTotal += amount;
-
-            if (transaction.purchaseType === 'Credit') {
-              acc.monthCredit += amount;
-            }
-          }
-        } catch (error) {
-          console.error('Transaction date processing error:', error);
+      let transDate;
+      try {
+        if (transaction.orderDate?.toDate) {
+          transDate = transaction.orderDate.toDate();
+        } else if (transaction.orderDate?.seconds) {
+          transDate = new Date(transaction.orderDate.seconds * 1000);
+        } else {
+          transDate = new Date(transaction.orderDate);
         }
-        return acc;
-      }, { monthTotal: 0, monthCredit: 0 });
+        const monthYearKey = transDate.toLocaleString('default', { month: 'short' }) + transDate.getFullYear();
+        const monthData = last6Months.find(m =>
+          (m.month + m.year) === monthYearKey
+        );
 
-    } catch (error) {
-      console.error('Totals calculation error:', error);
-      return { monthTotal: 0, monthCredit: 0 };
-    }
-  }, [transactions]);
+        if (monthData) {
+          const amount = Number(transaction.amount) || 0;
+          monthData.totalSales += amount;
+        }
+      } catch (error) {
+        console.error('Transaction date processing error:', error, transaction);
+      }
+    });
 
+    return {
+      labels: last6Months.map(m => m.month),
+      datasets: [
+        {
+          data: last6Months.map(m => m.totalSales),
+          color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`, // green
+          strokeWidth: 3,
+          withShadow: true,
+          withArea: true,
+          gradientFrom: '#22c55e',
+          gradientTo: '#a7f3d0',
+        }
+      ],
+      legend: ['Total Sales']
+    };
+  } catch (error) {
+    console.error('Data processing error:', error);
+    return {
+      labels: [],
+      datasets: [{ data: [] }],
+      legend: ['Total Sales']
+    };
+  }
+}, [transactions]);
+
+const totals = useMemo(() => {
+  try {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    return transactions.reduce((acc, transaction) => {
+      if (!transaction.orderDate) return acc;
+
+      let transDate;
+      try {
+        if (transaction.orderDate?.toDate) {
+          transDate = transaction.orderDate.toDate();
+        } else if (transaction.orderDate?.seconds) {
+          transDate = new Date(transaction.orderDate.seconds * 1000);
+        } else {
+          transDate = new Date(transaction.orderDate);
+        }
+
+        if (transDate.getMonth() === currentMonth &&
+          transDate.getFullYear() === currentYear) {
+          const amount = Number(transaction.amount) || 0;
+          acc.monthTotal += amount;
+        }
+      } catch (error) {
+        console.error('Transaction date processing error:', error);
+      }
+      return acc;
+    }, { monthTotal: 0 });
+
+  } catch (error) {
+    console.error('Totals calculation error:', error);
+    return { monthTotal: 0 };
+  }
+}, [transactions]);
   return (
     <View className={`rounded-xl p-4 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
 
 
-      <View className="flex-row justify-between mb-6">
-        <View className="flex-1 mr-2 p-3 rounded-xl bg-green-100">
-          <Text className="text-xs text-green-800">Monthly Sales</Text>
-          <Text className="text-sm font-bold text-green-800">
-            ₹{totals.monthTotal.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
-          </Text>
-        </View>
-        <View className="flex-1 ml-2 p-3 rounded-xl bg-red-100">
-          <Text className="text-xs text-red-800">Credit Sales</Text>
-          <Text className="text-sm font-bold text-red-800">
-            ₹{totals.monthCredit.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
-          </Text>
-        </View>
+      <View className="mb-6">
+      <View className="p-3 rounded-xl bg-green-100">
+        <Text className="text-xs text-green-800">Monthly Sales</Text>
+        <Text className="text-sm font-bold text-green-800">
+          ₹{totals.monthTotal.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+        </Text>
+      </View>
       </View>
 
       <ScrollView

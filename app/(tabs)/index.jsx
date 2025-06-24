@@ -6,8 +6,9 @@ import {
   orderBy,
   query
 } from 'firebase/firestore';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Linking,
   Pressable,
   RefreshControl,
@@ -30,8 +31,32 @@ const OrderHistory = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedRange, setSelectedRange] = useState('thirtyDays');
-  const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
+
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const lastScrollY = useRef(0);
+  const buttonTranslateY = useRef(new Animated.Value(0)).current;
+
+  // Animate based on scroll direction
+  const handleScroll = (event) => {
+    const currentY = event.nativeEvent.contentOffset.y;
+
+    if (currentY > lastScrollY.current + 10) {
+      // Scrolling down -> hide
+      Animated.timing(buttonTranslateY, {
+        toValue: 140,
+        useNativeDriver: true,
+      }).start();
+    } else if (currentY < lastScrollY.current - 10) {
+      // Scrolling up -> show
+      Animated.timing(buttonTranslateY, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    }
+
+    lastScrollY.current = currentY;
+  };
 
   const dateRanges = getDateRanges();
 
@@ -142,14 +167,14 @@ const OrderHistory = () => {
       key={rangeKey}
       onPress={() => setSelectedRange(rangeKey)}
       className={`px-6 py-3 rounded-full mr-2 ${selectedRange === rangeKey
-          ? 'bg-blue-600'
-          : isDark ? 'bg-gray-800' : 'bg-gray-200'
+        ? 'bg-blue-600'
+        : isDark ? 'bg-gray-800' : 'bg-gray-200'
         }`}
     >
       <Text
         className={`${selectedRange === rangeKey
-            ? 'text-white font-bold'
-            : isDark ? 'text-gray-300' : 'text-gray-700'
+          ? 'text-white font-bold'
+          : isDark ? 'text-gray-300' : 'text-gray-700'
           }`}
       >
         {dateRanges[rangeKey].label}
@@ -207,8 +232,7 @@ const OrderHistory = () => {
             <Pressable
               onPress={() => Linking.openURL(`tel:${order.phoneNumber}`)}
               className={`flex-row items-center px-1 py-2 rounded-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'
-                }`}
-            >
+                }`}>
               <MaterialIcons name="call" size={16} color="#fff" />
               <Text className="text-white font-medium ml-2">Call Now</Text>
             </Pressable>
@@ -226,7 +250,7 @@ const OrderHistory = () => {
 
   return (
     <>
-      {/* Fixed Header & Filters */}
+      {/* Fixed Header */}
       <View
         className={`absolute top-0 left-0 right-0 z-10 px-4 pt-6 pb-2 ${isDark ? 'bg-black' : 'bg-white'} shadow`}
         style={{ elevation: 3 }}
@@ -239,10 +263,10 @@ const OrderHistory = () => {
         </ScrollView>
       </View>
 
-      {/* Scrollable Order List */}
+      {/* ScrollView with scroll tracking */}
       <ScrollView
-        className={`flex-1  ${isDark ? 'bg-black' : 'bg-gray-100'}`}
-        contentContainerStyle={{ paddingTop: 120, paddingBottom: 70 }}
+        className={`${isDark ? 'bg-black' : 'bg-gray-100'}`}
+        contentContainerStyle={{ paddingTop: 120, paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -250,8 +274,10 @@ const OrderHistory = () => {
             tintColor={isDark ? '#ffffff' : '#000000'}
           />
         }
+        onScroll={handleScroll}
+        scrollEventThrottle={10}
       >
-        <View className="px-4 mt-2 ">
+        <View className="px-4 mt-2">
           {filteredOrders.length === 0 ? (
             <View className={`p-8 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} items-center`}>
               <MaterialIcons name="receipt-long" size={48} color={isDark ? '#4b5563' : '#9ca3af'} />
@@ -265,12 +291,16 @@ const OrderHistory = () => {
         </View>
       </ScrollView>
 
-      {/* Add Sale Floating Button */}
-      <Pressable
-        onPress={() => setShowOrderModal(true)}
-        className="absolute bottom-24 left-1/2 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
+      {/* Animated Add Sale Button */}
+      <Animated.View
         style={{
-          transform: [{ translateX: -56 }],
+          position: 'absolute',
+          bottom: 80,
+          left: '50%',
+          transform: [
+            { translateX: -56 },
+            { translateY: buttonTranslateY }
+          ],
           elevation: 5,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 2 },
@@ -278,10 +308,16 @@ const OrderHistory = () => {
           shadowRadius: 3.84,
         }}
       >
-        <Ionicons name="add" size={24} color="white" />
-        <Text className="text-white font-medium ml-1">Add Sale</Text>
-      </Pressable>
+        <Pressable
+          onPress={() => setShowOrderModal(true)}
+          className="w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
+        >
+          <Ionicons name="add" size={24} color="white" />
+          <Text className="text-white font-medium ml-1">Add Sale</Text>
+        </Pressable>
+      </Animated.View>
 
+      {/* Order Modal */}
       <Order
         visible={showOrderModal}
         onClose={() => setShowOrderModal(false)}

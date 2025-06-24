@@ -201,8 +201,9 @@ const verifyPinAndDelete = async (enteredPin) => {
                   {formatDate(transaction.orderDate)}
                 </Text>
                 <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {transaction.salesType} • {transaction.purchaseType}
-                </Text>
+  {`${transaction.salesType || ''} • ${transaction.purchaseType || ''}`}
+</Text>
+
               </View>
             </View>
 
@@ -235,24 +236,25 @@ const verifyPinAndDelete = async (enteredPin) => {
                   </Text>
                 </View>
               </View>
-
-              <Pressable
-                onPress={() => onAddPayment(transaction)}
-                className={`px-3 py-1 rounded-md ${
-                  completed
-                    ? isDark ? 'bg-green-600' : 'bg-green-500'
-                    : isDark ? 'bg-blue-600' : 'bg-blue-500'
-                } active:opacity-80`}
-                android_ripple={{
-                  color: completed
-                    ? isDark ? '#16a34aaa' : '#22c55eaa'
-                    : isDark ? '#2563ebaa' : '#3b82f6aa'
-                }}
-              >
-                <Text className="text-white font-semibold text-sm">
-                  {completed ? 'View Payments' : 'Add Payment'}
-                </Text>
-              </Pressable>
+<Pressable
+  onPress={() => onAddPayment(transaction)}
+  className={`px-3 py-1 rounded-md ${
+    completed
+      ? isDark ? 'bg-green-600' : 'bg-green-500'
+      : isDark ? 'bg-blue-600' : 'bg-blue-500'
+  } active:opacity-80`}
+  android_ripple={{
+    color: completed
+      ? isDark ? '#16a34aaa' : '#22c55eaa'
+      : isDark ? '#2563ebaa' : '#3b82f6aa'
+  }}
+>
+  <MaterialIcons
+    name={completed ? 'visibility' : 'payments'}
+    size={20}
+    color="#fff"
+  />
+</Pressable>
             </View>
           </Pressable>
         </Swipeable>

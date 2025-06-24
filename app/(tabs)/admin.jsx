@@ -15,7 +15,7 @@ import AnalyticsOverview from '../screens/AnalyticsOverview';
 const AdminCard = ({ title, description, icon, onPress, color, isDark }) => (
   <TouchableOpacity
     onPress={onPress}
-    className={`p-4 mb-4 rounded-xl shadow-md ${isDark ? 'bg-gray-900' : 'bg-white'}`}
+    className={`p-4 mb-4 rounded-xl shadow-sm ${isDark ? 'bg-gray-900' : 'bg-white'}`}
     style={{ elevation: 3 }}
   >
     <View className="flex-row items-center">
@@ -114,23 +114,23 @@ const Admin = () => {
   return (
     <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-50'}`}>
       <ScrollView className="p-4" contentContainerStyle={{
-            paddingBottom: 70
+            paddingBottom: 10
           }}>
-        <AnalyticsOverview />
+        {/* <AnalyticsOverview /> */}
 
         <View className="mb-6">
           <View className="flex-row justify-between items-center">
             <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Welcome, {user?.name}
+              Welcome, {user?.fullName}
             </Text>
 
             <TouchableOpacity
               onPress={handleLogout}
-              className={`flex-row items-center p-4 rounded-xl shadow-md ${isDark ? 'bg-gray-900' : 'bg-white'}`}
+              className={`flex-row items-center p-4 rounded-xl shadow-sm `}
               style={{ elevation: 3 }}
             >
               <View className="p-3 rounded-lg bg-red-100">
-                <MaterialIcons name="logout" size={24} color="#ef4444" />
+                <MaterialIcons name="logout" size={16} color="#ef4444" />
               </View>
             </TouchableOpacity>
           </View>
@@ -152,6 +152,7 @@ const Admin = () => {
               onPress={() => router.push(feature.route)}
             />
           ))}
+          <AnalyticsOverview />
         </View>
       </ScrollView>
     </View>

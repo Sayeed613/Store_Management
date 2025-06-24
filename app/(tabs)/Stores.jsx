@@ -8,8 +8,9 @@ import {
   query,
   where
 } from 'firebase/firestore';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   FlatList,
   Pressable,
   Text,
@@ -61,6 +62,31 @@ export default function Stores() {
   const [isLoading, setIsLoading] = useState(true);
   const [lastVisible, setLastVisible] = useState(null);
   const [hasMore, setHasMore] = useState(true);
+
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const lastScrollY = useRef(0);
+  const buttonTranslateY = useRef(new Animated.Value(0)).current;
+
+  // Debounce scroll check for smoother animation
+  const handleScroll = (event) => {
+    const currentY = event.nativeEvent.contentOffset.y;
+
+    if (currentY > lastScrollY.current + 10) {
+      // Scrolling down -> hide
+      Animated.timing(buttonTranslateY, {
+        toValue: 140,
+        useNativeDriver: true,
+      }).start();
+    } else if (currentY < lastScrollY.current - 10) {
+      // Scrolling up -> show
+      Animated.timing(buttonTranslateY, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    }
+
+    lastScrollY.current = currentY;
+  };;
 
   useEffect(() => {
     setIsLoading(true);
@@ -169,6 +195,14 @@ export default function Stores() {
     setFilteredOutlets(filtered);
   }, [outlets]);
 
+  const isNewStore = (createdAt) => {
+    if (!createdAt) return false;
+    const storeDate = createdAt?.toDate?.() || new Date(createdAt?.seconds * 1000);
+    const diffTime = Math.abs(new Date() - storeDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 3;
+  };
+
   const renderOutlet = useCallback(({ item }) => {
     const {
       storeName,
@@ -178,7 +212,8 @@ export default function Stores() {
       fullAddress,
       id,
       creditLimit,
-      status
+      status,
+      createdAt
     } = item;
 
     const orderInfo = outletOrders[id] || {};
@@ -188,6 +223,7 @@ export default function Stores() {
 
     const lastOrderAmount = lastOrder?.amount || 0;
     const lastOrderDate = lastOrder?.orderDate;
+    const showNewBadge = !lastOrder && isNewStore(createdAt);
 
     return (
       <Pressable
@@ -212,46 +248,34 @@ export default function Stores() {
         })}
       >
         <View className={`border rounded-xl p-4 mb-4 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'}`}>
-
-          {/* Store Name & Route */}
           <View className="flex-row justify-between items-center mb-2">
-            <View className="flex-row items-center space-x-2">
-              <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{storeName}</Text>
-            </View>
+            <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{storeName}</Text>
             <View className="flex-row items-center space-x-1">
               <Entypo name="location-pin" size={16} color="#3B82F6" />
               <Text className="text-sm text-blue-600">{route || 'N/A'}</Text>
             </View>
           </View>
 
-          {/* Owner */}
-          <View className="flex-row items-center space-x-2 mb-2">
-            <Text className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              Owner: {propName}
-            </Text>
+          <View className="flex-row items-center justify-between mb-2">
+            <Text className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Owner: {propName}</Text>
+            {showNewBadge && (
+              <View className="ml-2 px-2 py-1 bg-green-500 rounded-full">
+                <Text className="text-white text-xs font-medium">New Store</Text>
+              </View>
+            )}
           </View>
 
-          {/* Credit & Pending */}
           <View className="flex-row justify-between border-t border-b py-2 border-gray-200">
-            <View className="flex-row items-center space-x-1">
-              <Text className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                Credit Limit: ₹{creditLimit?.toLocaleString('en-IN')}
-              </Text>
-            </View>
-            <View className="flex-row items-center space-x-1">
-              <Text className={`text-sm font-medium ${isDark ? 'text-red-400' : 'text-red-600'}`}>
-                Pending: ₹{pendingAmount.toLocaleString('en-IN')}
-              </Text>
-            </View>
+            <Text className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Credit Limit: ₹{creditLimit?.toLocaleString('en-IN')}</Text>
+            <Text className={`text-sm font-medium ${isDark ? 'text-red-400' : 'text-red-600'}`}>Pending: ₹{pendingAmount.toLocaleString('en-IN')}</Text>
           </View>
 
-          <View className="flex-row gap-2 items-center mt-2 space-x-2">
+          <View className="flex-row gap-2 items-center mt-2">
             <FontAwesome5 name="clock" size={14} color="#6B7280" />
             <Text className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               Last Order: ₹{lastOrderAmount.toLocaleString('en-IN')} on {formatDate(lastOrderDate)}
             </Text>
           </View>
-
         </View>
       </Pressable>
     );
@@ -264,9 +288,7 @@ export default function Stores() {
   return (
     <View className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
       <View className={`px-4 py-3 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
-        <Text className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          Stores
-        </Text>
+        <Text className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Stores</Text>
         <TextInput
           placeholder="Search stores..."
           placeholderTextColor={isDark ? '#888' : '#999'}
@@ -277,12 +299,12 @@ export default function Stores() {
       </View>
 
       <FlatList
-        className="flex-1"
-        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
         data={filteredOutlets}
         keyExtractor={item => item.id}
         renderItem={renderOutlet}
-        onEndReachedThreshold={0.5}
+        contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         ListEmptyComponent={
           <View className="items-center justify-center py-8">
             <Text className={`text-base ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -292,21 +314,26 @@ export default function Stores() {
         }
       />
 
-       <Pressable
-        onPress={() => setShowOrderModal(true)}
-        className="absolute bottom-24 left-1/2 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
+      <Animated.View
         style={{
-          transform: [{ translateX: -56 }],
-          elevation: 5,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.25,
-          shadowRadius: 3.84,
+          position: 'absolute',
+          bottom: 80,
+          left: '50%',
+          transform: [
+            { translateX: -56 },
+            { translateY: buttonTranslateY }
+          ],
+          zIndex: 10
         }}
       >
-        <Ionicons name="add" size={24} color="white" />
-        <Text className="text-white font-medium ml-1">Add Sale</Text>
-      </Pressable>
+        <Pressable
+          onPress={() => setShowOrderModal(true)}
+          className="w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
+        >
+          <Ionicons name="add" size={24} color="white" />
+          <Text className="text-white font-medium ml-1">Add Sale</Text>
+        </Pressable>
+      </Animated.View>
 
       <Order
         visible={showOrderModal}

@@ -3,11 +3,11 @@ import { useRouter } from 'expo-router';
 import {
   collection,
   doc,
-  getDocs, // Add this
+  getDocs,
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp, // Add this
+  serverTimestamp,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -23,13 +23,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PinModal from '../components/Aunthentication/PinModal';
 import Loader from '../components/common/Loader';
+import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContextProvider';
 import { db } from '../services/firebase/config';
 
+
 const InActiveStores = () => {
+
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const router = useRouter();
+    const { user } = useAuth();
+  const isAdmin = user?.userType?.toLowerCase() === 'admin';
 
   const [inactiveOutlets, setInactiveOutlets] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,34 +70,56 @@ const InActiveStores = () => {
       await verifyPinAndActivate(newPinValues.join(''));
     }
   };
-
- const verifyPinAndActivate = async (enteredPin) => {
+  const verifyPinAndActivate = async (enteredPin) => {
   try {
-    const querySnapshot = await getDocs(collection(db, 'users'));
-    const users = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    // Query only admin users
+    const querySnapshot = await getDocs(
+      query(
+        collection(db, 'users'),
+        where('userType', '==', 'admin')
+      )
+    );
 
-    // Check if any user's PIN matches
-    const matchingUser = users.find(user => user.pin === enteredPin);
+    const isAdminPinValid = querySnapshot.docs.some(doc => {
+      const userData = doc.data();
+      const storedPin = userData.pin?.toString().trim();
+      const inputPin = enteredPin?.toString().trim();
+      return storedPin === inputPin;
+    });
 
-    if (matchingUser) {
-      await updateDoc(doc(db, 'outlets', selectedOutlet.id), {
-        status: 'active',
-        reactivatedAt: serverTimestamp(),
-      });
-      Alert.alert('Success', 'Outlet has been reactivated');
-      setShowPinModal(false);
+    if (!isAdminPinValid) {
+      Alert.alert('Error', 'Invalid admin PIN');
       setPinValues(['', '', '', '']);
-      setSelectedOutlet(null);
-    } else {
-      Alert.alert('Error', 'Incorrect PIN');
-      setPinValues(['', '', '', '']);
+      return;
     }
+
+    if (!selectedOutlet?.id) {
+      Alert.alert('Error', 'Invalid outlet selected');
+      return;
+    }
+
+    // Create update data with null check for user
+    const updateData = {
+      status: 'active',
+      reactivatedAt: serverTimestamp(),
+    };
+
+    // Only add reactivatedBy if we have a valid user id
+    if (user?.id) {
+      updateData.reactivatedBy = user.id;
+    }
+
+    await updateDoc(doc(db, 'outlets', selectedOutlet.id), updateData);
+
+    Alert.alert('Success', 'Outlet has been reactivated');
+    setShowPinModal(false);
+    setPinValues(['', '', '', '']);
+    setSelectedOutlet(null);
+
   } catch (error) {
     console.error('Activation failed:', error);
     Alert.alert('Error', 'Failed to activate outlet');
+    setPinValues(['', '', '', '']);
   }
 };
 
@@ -138,15 +165,21 @@ const InActiveStores = () => {
               {new Date(item.deactivatedAt?.seconds * 1000).toLocaleDateString()}
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={() => {
-              setSelectedOutlet(item);
-              setShowPinModal(true);
-            }}
-            className="px-4 py-2 rounded-lg bg-green-500 active:bg-green-600"
-          >
-            <Text className="text-white font-medium">Reactivate</Text>
-          </TouchableOpacity>
+             <TouchableOpacity
+      onPress={() => {
+        if (!isAdmin) {
+          Alert.alert('Permission Denied', 'Please contact an administrator to reactivate stores');
+          return;
+        }
+        setSelectedOutlet(item);
+        setShowPinModal(true);
+      }}
+      className={`px-4 py-2 rounded-lg ${
+        isAdmin ? 'bg-green-500 active:bg-green-600' : 'bg-gray-400'
+      }`}
+    >
+      <Text className="text-white font-medium">Reactivate</Text>
+    </TouchableOpacity>
         </View>
       </View>
     </View>

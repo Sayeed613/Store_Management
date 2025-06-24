@@ -72,7 +72,6 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
 
   const handleAddPayment = () => {
     Keyboard.dismiss();
-
     setTimeout(() => {
       const trimmedAmount = newPayment?.trim();
       if (!validatePayment(trimmedAmount)) return;
@@ -168,10 +167,10 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
 
   return (
     <Modal visible={visible} animationType="fade" transparent>
-      <View className="flex-1 justify-center items-center bg-black/50">
+      <View  className="flex-1 justify-center items-center bg-black/50">
         <View
           className={`w-[90%] rounded-2xl ${isDark ? 'bg-gray-900' : 'bg-white'} shadow-xl`}
-          style={{ maxHeight: '50%' }}
+          style={{ maxHeight: '75%' }}
         >
           <View className={`flex-row justify-between items-center p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
             <View>
@@ -190,7 +189,11 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
             </Pressable>
           </View>
 
-          <ScrollView className="p-4">
+          <ScrollView
+            className="p-4"
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 24 }}
+          >
             <View className="flex-row justify-between mb-4">
               <View className={`p-4 rounded-xl flex-1 mr-2 ${isDark ? 'bg-gray-800' : 'bg-blue-50'}`}>
                 <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -264,6 +267,8 @@ const PaymentModal = ({ visible, onClose, order, onPaymentAdded }) => {
                 data={(order.payments || []).slice().reverse()}
                 keyExtractor={(item, index) => index.toString()}
                 scrollEnabled={false}
+                showsVerticalScrollIndicator={true}
+                contentContainerStyle={{ flexGrow: 1 }}
                 renderItem={({ item }) => (
                   <View className={`flex-row justify-between items-center p-4 mb-2 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
                     <View>

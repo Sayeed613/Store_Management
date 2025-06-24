@@ -559,7 +559,7 @@ const renderSearchBar = () => (
                     <ActivityIndicator color="#ffffff" />
                   ) : (
                     <Text className="text-white font-bold text-lg">
-                      Save Order
+                      Save Sale
                     </Text>
                   )}
                 </Pressable>

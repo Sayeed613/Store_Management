@@ -2,11 +2,11 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   collection, deleteDoc, doc,
-  getDocs,
-  onSnapshot,
-  orderBy, query, serverTimestamp, updateDoc, where, writeBatch
+  getDocs, onSnapshot,
+  orderBy, query, serverTimestamp,
+  updateDoc, where, writeBatch
 } from 'firebase/firestore';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Animated, Linking, Pressable,
   ScrollView, Text, TextInput,
@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import Modal from 'react-native-modal';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ROUTES } from '../../constants/outlet.constants';
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from '../../context/ThemeContextProvider';
 import { db } from '../../services/firebase/config';
@@ -38,12 +37,15 @@ export default function OutletDetail() {
   const [outletData, setOutletData] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [routesLoading, setRoutesLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [showGraphModal, setShowGraphModal] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinValues, setPinValues] = useState(['', '', '', '']);
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [routes, setRoutes] = useState([]);
+
   const [editedData, setEditedData] = useState({
     storeName: '',
     propName: '',
@@ -56,12 +58,34 @@ export default function OutletDetail() {
 
   // Animation value
   const scrollY = useMemo(() => new Animated.Value(0), []);
+  const lastScrollY = useRef(0);
+  const buttonTranslateY = useRef(new Animated.Value(0)).current;
 
-  // Real-time data subscriptions
+  const handleScroll = (event) => {
+    const currentY = event.nativeEvent.contentOffset.y;
+
+    if (currentY > lastScrollY.current + 10) {
+      // Scrolling down -> hide
+      Animated.timing(buttonTranslateY, {
+        toValue: 140,
+        useNativeDriver: true,
+      }).start();
+    } else if (currentY < lastScrollY.current - 10) {
+      // Scrolling up -> show
+      Animated.timing(buttonTranslateY, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    }
+
+    lastScrollY.current = currentY;
+  };
+
   useEffect(() => {
     if (!params.id) return;
 
     setLoading(true);
+    setRoutesLoading(true);
 
     // Outlet listener
     const outletUnsubscribe = onSnapshot(
@@ -113,10 +137,33 @@ export default function OutletDetail() {
       }
     );
 
-    // Cleanup subscriptions
+    // Routes listener
+    const routeQuery = query(
+      collection(db, 'route'),
+      where('status', '==', true)
+    );
+
+    const routeUnsubscribe = onSnapshot(
+      routeQuery,
+      (snapshot) => {
+        const routeData = snapshot.docs.map(doc => ({
+          label: doc.data().route,
+          value: doc.data().route.toLowerCase().replace(/\s+/g, '_')
+        }));
+        setRoutes(routeData);
+        setRoutesLoading(false);
+      },
+      (error) => {
+        console.error('Routes listener error:', error);
+        Alert.alert('Error', 'Failed to load routes');
+        setRoutesLoading(false);
+      }
+    );
+
     return () => {
       outletUnsubscribe();
       transactionsUnsubscribe();
+      routeUnsubscribe();
     };
   }, [params.id]);
 
@@ -204,64 +251,64 @@ export default function OutletDetail() {
 
 
   const verifyPinAndDeactivate = async (enteredPin) => {
-  try {
-    setIsDeactivating(true);
+    try {
+      setIsDeactivating(true);
 
-    const querySnapshot = await getDocs(
-      query(
-        collection(db, 'users'),
-        where('userType', '==', 'admin')
-      )
-    );
+      const querySnapshot = await getDocs(
+        query(
+          collection(db, 'users'),
+          where('userType', '==', 'admin')
+        )
+      );
 
-    const isAdminPinValid = querySnapshot.docs.some(doc => {
-      const userData = doc.data();
-      const trimmedStored = userData.pin ? userData.pin.trim() : '';
-      const trimmedEntered = enteredPin ? enteredPin.trim() : '';
-      return trimmedStored === trimmedEntered;
-    });
+      const isAdminPinValid = querySnapshot.docs.some(doc => {
+        const userData = doc.data();
+        const trimmedStored = userData.pin ? userData.pin.trim() : '';
+        const trimmedEntered = enteredPin ? enteredPin.trim() : '';
+        return trimmedStored === trimmedEntered;
+      });
 
-    if (!isAdminPinValid) {
-      Alert.alert('Error', 'Invalid admin PIN');
+      if (!isAdminPinValid) {
+        Alert.alert('Error', 'Invalid admin PIN');
+        setPinValues(['', '', '', '']);
+        return;
+      }
+
+      // Delete all related transactions first
+      const salesQuery = query
+        (collection(db, 'sales'),
+          where('outletId', '==', params.id)
+        );
+      const salesSnapshot = await getDocs(salesQuery);
+
+      // Create a batch for bulk operations
+      const batch = writeBatch(db);
+
+      // Add all transaction deletions to batch
+      salesSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Add outlet deactivation to batch
+      batch.update(doc(db, 'outlets', params.id), {
+        status: 'inactive',
+        deactivatedAt: serverTimestamp(),
+      });
+
+      // Commit the batch
+      await batch.commit();
+
+      Alert.alert('Success', 'Outlet has been deactivated and all related transactions have been deleted');
+      setShowPinModal(false);
       setPinValues(['', '', '', '']);
-      return;
+      router.back();
+    } catch (error) {
+      console.error('Deactivation failed:', error);
+      Alert.alert('Error', 'Failed to deactivate outlet');
+    } finally {
+      setIsDeactivating(false);
     }
-
-    // Delete all related transactions first
-    const salesQuery = query
-    (collection(db, 'sales'),
-      where('outletId', '==', params.id)
-    );
-    const salesSnapshot = await getDocs(salesQuery);
-
-    // Create a batch for bulk operations
-    const batch = writeBatch(db);
-
-    // Add all transaction deletions to batch
-    salesSnapshot.docs.forEach(doc => {
-      batch.delete(doc.ref);
-    });
-
-    // Add outlet deactivation to batch
-    batch.update(doc(db, 'outlets', params.id), {
-      status: 'inactive',
-      deactivatedAt: serverTimestamp(),
-    });
-
-    // Commit the batch
-    await batch.commit();
-
-    Alert.alert('Success', 'Outlet has been deactivated and all related transactions have been deleted');
-    setShowPinModal(false);
-    setPinValues(['', '', '', '']);
-    router.back();
-  } catch (error) {
-    console.error('Deactivation failed:', error);
-    Alert.alert('Error', 'Failed to deactivate outlet');
-  } finally {
-    setIsDeactivating(false);
-  }
-};
+  };
 
 
 
@@ -331,7 +378,7 @@ export default function OutletDetail() {
         </Text>
         <Select
           value={editedData.route}
-          options={ROUTES}
+          options={routes}
           onChange={value => setEditedData(prev => ({ ...prev, route: value }))}
           isDark={isDark}
         />
@@ -395,25 +442,25 @@ export default function OutletDetail() {
           >
             <MaterialIcons name="edit" size={20} color={isDark ? '#fff' : '#374151'} />
           </Pressable>
-         {isAdmin ? (
-  <Pressable
-    onPress={() => setShowPinModal(true)}
-    className="p-2 rounded-full bg-red-500"
-  >
-    <MaterialIcons name="delete" size={20} color="#fff" />
-  </Pressable>
-) : (
-  <Pressable
-    onPress={() => Alert.alert(
-      'Permission Denied',
-      'Please contact your administrator to deactivate this outlet.',
-      [{ text: 'OK' }]
-    )}
-    className="p-2 rounded-full bg-gray-500"
-  >
-    <MaterialIcons name="delete" size={20} color="#fff" />
-  </Pressable>
-)}
+          {isAdmin ? (
+            <Pressable
+              onPress={() => setShowPinModal(true)}
+              className="p-2 rounded-full bg-red-500"
+            >
+              <MaterialIcons name="delete" size={20} color="#fff" />
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => Alert.alert(
+                'Permission Denied',
+                'Please contact your administrator to deactivate this outlet.',
+                [{ text: 'OK' }]
+              )}
+              className="p-2 rounded-full bg-gray-500"
+            >
+              <MaterialIcons name="delete" size={20} color="#fff" />
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -429,7 +476,7 @@ export default function OutletDetail() {
           <View className="flex-1">
             <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Route</Text>
             <Text className={`text-base font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {ROUTES.find(r => r.value === outletData?.route)?.label}
+              {routes.find(r => r.value === outletData?.route)?.label || outletData?.route || 'N/A'}
             </Text>
           </View>
         </View>
@@ -613,7 +660,7 @@ export default function OutletDetail() {
             }`}>
             <View>
               <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-               Monthly Sales Overview
+                Monthly Sales Overview
               </Text>
 
             </View>
@@ -638,9 +685,7 @@ export default function OutletDetail() {
     </Modal>
   );
 
-
-
-  if (loading) {
+  if (loading || routesLoading) {
     return <Loader message="Loading outlet details..." />;
   }
 
@@ -648,9 +693,13 @@ export default function OutletDetail() {
     <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
       {renderHeader()}
       <Animated.ScrollView
+        scrollEventThrottle={16}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
+          {
+            useNativeDriver: true,
+            listener: handleScroll // Add the scroll listener here
+          }
         )}
         className="flex-1"
       >
@@ -674,11 +723,15 @@ export default function OutletDetail() {
         )}
       </Animated.ScrollView>
 
-      <Pressable
-        onPress={() => setShowOrderModal(true)}
-        className="absolute bottom-24 left-1/2 w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
+      <Animated.View
         style={{
-          transform: [{ translateX: -56 }],
+          position: 'absolute',
+          bottom: 60,
+          left: '50%',
+          transform: [
+            { translateX: -56 },
+            { translateY: buttonTranslateY }
+          ],
           elevation: 5,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 2 },
@@ -686,9 +739,14 @@ export default function OutletDetail() {
           shadowRadius: 3.84,
         }}
       >
-        <Ionicons name="add" size={24} color="white" />
-        <Text className="text-white font-medium ml-1">Add Sale</Text>
-      </Pressable>
+        <Pressable
+          onPress={() => setShowOrderModal(true)}
+          className="w-32 h-12 flex-row items-center justify-center rounded-full bg-blue-600 shadow-lg active:bg-blue-700"
+        >
+          <Ionicons name="add" size={24} color="white" />
+          <Text className="text-white font-medium ml-1">Add Sale</Text>
+        </Pressable>
+      </Animated.View>
 
       <Order
         visible={showOrderModal}
