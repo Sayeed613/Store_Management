@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "SN Traders",
+    "name": "Trade Track ",
     "slug": "Store_Management",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/ios-icon.png",
     "scheme": "storemanagement",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -19,7 +19,7 @@
     "android": {
       "package": "com.bobby02.Store_Management",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
+        "foregroundImage": "./assets/images/andrion-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
