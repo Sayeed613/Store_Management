@@ -44,12 +44,12 @@ export default function LoginScreen() {
 
 
   useEffect(() => {
-  Animated.timing(fadeAnim, {
-    toValue: 1,
-    duration: 1000,
-    useNativeDriver: true,
-  }).start();
-}, []);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -150,155 +150,162 @@ export default function LoginScreen() {
   if (loading) return <Loader message="Checking session..." />;
 
   return (
-<SafeAreaView className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-    <KeyboardAvoidingView
-    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    className="flex-1"
-    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-  >
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View className="flex-1" style={{ backgroundColor: isDark ? '#1a202c' : '#fff' }}>
-        {/* Top Section */}
-        <View className="flex-1 min-h-[200px]">
-          <View className="mb-2 px-6 py-4">
-          <Animated.View style={{ opacity: fadeAnim }}>
-            <Text className={`text-sm ${isDark ? 'text-white' : 'text-black'}`}>TradeTrack</Text>
-            <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`}>By SN TRADERS</Text>
-          </Animated.View>
+    <SafeAreaView className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="flex-1"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View className="flex-1" style={{ backgroundColor: isDark ? '#1a202c' : '#fff' }}>
+            {/* Top Section */}
+            <View className="flex-1 min-h-[200px]">
+              <View className="mb-2 px-6 py-4">
+                <Animated.View style={{ opacity: fadeAnim }}>
+                  <Text className={`text-sm ${isDark ? 'text-white' : 'text-black'}`}>TradeTrack</Text>
+                  <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`}>By SN TRADERS</Text>
+                </Animated.View>
 
-            <Text className={`text-md mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Wholesale, FMCG Products</Text>
-            <Text className={`text-md mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              <Text className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>GSTIN :</Text>
-              <Text> 29MNCPS4898H1ZW</Text>
-            </Text>
-          </View>
-
-          <View
-            className={`mb-4 px-4 flex-col gap-3 border-l-4 pl-4`}
-            style={{
-              borderColor: isDark ? '#3b82f6' : '#2563eb',
-            }}
-          >
-            <View className="flex-row gap-2 items-center space-x-2">
-              <Ionicons name="call" size={20} color={isDark ? '#3b82f6' : '#2563eb'} />
-              <Text className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>9019864221</Text>
-            </View>
-
-            <View className="flex-row gap-2 items-center space-x-2">
-              <Ionicons name="mail" size={20} color={isDark ? '#3b82f6' : '#2563eb'} />
-              <Text className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>naw.sye.az.d@gmail.com</Text>
-            </View>
-
-            <View className="flex-row gap-2 items-start space-x-2">
-              <Ionicons name="location-sharp" size={20} color={isDark ? '#3b82f6' : '#2563eb'} />
-              <View>
-                <Text className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Shop #2, Masjid-E-Thouheed, Mini Ibrahim Road,</Text>
-                <Text className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Robertsonpet KGF - 563122</Text>
+                <Text className={`text-md mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Wholesale, FMCG Products</Text>
+                <Text className={`text-md mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <Text className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>GSTIN :</Text>
+                  <Text> 29MNCPS4898H1ZW</Text>
+                </Text>
               </View>
-            </View>
-          </View>
-        </View>
 
-        {/* Bottom Section */}
-        <View
-          className="rounded-tl-[60px]  justify-center px-6 py-8 "
-          style={{
-            backgroundColor: isDark ? '#2563eb' : '#3b82f6',
-          }}
-        >
-          <View className="space-y-6 mt-10">
-            {/* Username */}
-            <View className="relative mb-6">
-              <TextInput
-                className={`pl-3 pr-4 py-4 rounded-xl text-base border w-full ${
-                  isDark
-                    ? 'bg-gray-900 text-white border-gray-700'
-                    : 'bg-white text-gray-900 border-gray-300'
-                }`}
-                placeholder="Username"
-                placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
-                value={username}
-                onChangeText={(text) => {
-                  setUsername(text.replace(/[^a-zA-Z0-9@_]/g, ''));
-                  setValidationError('');
+              <View
+                className={`mb-4 px-4 flex-col gap-3 border-l-4 pl-4`}
+                style={{
+                  borderColor: isDark ? '#3b82f6' : '#2563eb',
                 }}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="next"
-                onSubmitEditing={() => pinInput.current?.focus()}
-              />
-            </View>
-
-            {/* PIN */}
-            <View className="relative">
-              <Ionicons
-                name="lock-closed-outline"
-                size={20}
-                style={{ position: 'absolute', top: 18, left: 12 }}
-                color={isDark ? '#9ca3af' : '#6b7280'}
-              />
-              <TextInput
-                ref={pinInput}
-                className={`pl-3 pr-12 py-4 rounded-xl text-base border w-full ${
-                  isDark
-                    ? 'bg-gray-900 text-white border-gray-700'
-                    : 'bg-white text-gray-900 border-gray-300'
-                }`}
-                placeholder="PIN"
-                placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
-                value={pin}
-                onChangeText={(text) => {
-                  setPin(text);
-                  setValidationError('');
-                }}
-                secureTextEntry={!showPin}
-                keyboardType="numeric"
-                maxLength={4}
-                returnKeyType="done"
-                onSubmitEditing={handleLogin}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPin(!showPin)}
-                style={{ position: 'absolute', right: 16, top: 20 }}
               >
-                <Ionicons
-                  name={showPin ? 'eye-outline' : 'eye-off-outline'}
-                  size={20}
-                  color={isDark ? '#9ca3af' : '#6b7280'}
-                />
-              </TouchableOpacity>
+                <View className="flex-row gap-2 items-center space-x-2">
+                  <Ionicons name="call" size={20} color={isDark ? '#3b82f6' : '#2563eb'} />
+                  <Text className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>9019864221</Text>
+                </View>
+
+                <View className="flex-row gap-2 items-center space-x-2">
+                  <Ionicons name="mail" size={20} color={isDark ? '#3b82f6' : '#2563eb'} />
+                  <Text className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>naw.sye.az.d@gmail.com</Text>
+                </View>
+
+                <View className="flex-row gap-2 items-start space-x-2">
+                  <Ionicons name="location-sharp" size={20} color={isDark ? '#3b82f6' : '#2563eb'} />
+                  <View>
+                    <Text className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Shop #2, Masjid-E-Thouheed, Mini Ibrahim Road,</Text>
+                    <Text className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Robertsonpet KGF - 563122</Text>
+                  </View>
+                </View>
+              </View>
             </View>
 
-            {/* Forgot PIN */}
-            <TouchableOpacity onPress={handleForgotPin} className="mb-4">
-              <Text className="text-right text-sm font-medium mt-2">Forgot PIN ?</Text>
-            </TouchableOpacity>
-
-            {/* Sign In Button */}
-                  <TouchableOpacity
-              disabled={loading}
-              onPress={handleLogin}
-              className={`py-4 rounded-xl ${
-                username && pin.length === 4 ? 'bg-blue-400' : 'bg-blue-400 opacity-80'
-              }`}
+            {/* Bottom Section */}
+            <View
+              className="rounded-tl-[60px]  justify-center px-6 py-8 "
+              style={{
+                backgroundColor: isDark ? '#2563eb' : '#3b82f6',
+                minHeight: "70%"
+              }}
             >
-              <Text className="text-center text-white font-semibold text-base">Sign In</Text>
-            </TouchableOpacity>
+              <View className="flex-1 justify-between">
+                {/* Inputs and Buttons */}
+                <View className="space-y-6">
+                  {/* Username */}
+                  <View className="relative top-0 pt-4">
+                    <TextInput
+                      className={`pl-3 pr-4 py-4  mb-4 rounded-xl text-base border w-full ${isDark
+                          ? 'bg-gray-900 text-white border-gray-700'
+                          : 'bg-white text-gray-900 border-gray-300'
+                        }`}
+                      placeholder="Username"
+                      placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
+                      value={username}
+                      onChangeText={(text) => {
+                        setUsername(text.replace(/[^a-zA-Z0-9@_]/g, ''));
+                        setValidationError('');
+                      }}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="next"
+                      onSubmitEditing={() => pinInput.current?.focus()}
+                    />
+                  </View>
 
-                        {/* Errors */}
-                      {(error || validationError) && (
-              <View className="bg-red-500/10 p-3 rounded-lg mt-2">
-                <Text className="text-red-500 text-center text-sm">{validationError || error}</Text>
+                  {/* PIN */}
+                  <View className="relative">
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={20}
+                      style={{ position: 'absolute', top: 18, left: 12 }}
+                      color={isDark ? '#9ca3af' : '#6b7280'}
+                    />
+                    <TextInput
+                      ref={pinInput}
+                      className={`pl-3 pr-12 py-4 rounded-xl text-base border w-full ${isDark
+                          ? 'bg-gray-900 text-white border-gray-700'
+                          : 'bg-white text-gray-900 border-gray-300'
+                        }`}
+                      placeholder="PIN"
+                      placeholderTextColor={isDark ? '#9ca3af' : '#6b7280'}
+                      value={pin}
+                      onChangeText={(text) => {
+                        setPin(text);
+                        setValidationError('');
+                      }}
+                      secureTextEntry={!showPin}
+                      keyboardType="numeric"
+                      maxLength={4}
+                      returnKeyType="done"
+                      onSubmitEditing={handleLogin}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPin(!showPin)}
+                      style={{ position: 'absolute', right: 16, top: 20 }}
+                    >
+                      <Ionicons
+                        name={showPin ? 'eye-outline' : 'eye-off-outline'}
+                        size={20}
+                        color={isDark ? '#9ca3af' : '#6b7280'}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Forgot PIN */}
+                  <TouchableOpacity onPress={handleForgotPin} className="mb-4">
+                    <Text className="text-right text-sm font-medium mt-2">Forgot PIN ?</Text>
+                  </TouchableOpacity>
+
+                  {/* Sign In Button */}
+                  <TouchableOpacity
+                    disabled={loading}
+                    onPress={handleLogin}
+                    className={`py-4 rounded-xl ${username && pin.length === 4 ? 'bg-blue-400' : 'bg-blue-400 opacity-80'
+                      }`}
+                  >
+                    <Text className="text-center text-white font-semibold text-base">Sign In</Text>
+                  </TouchableOpacity>
+
+                  {/* Errors */}
+                  {(error || validationError) && (
+                    <View className="bg-red-500/10 p-3 rounded-lg mt-2">
+                      <Text className="text-red-500 text-center text-sm">{validationError || error}</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Trademark at bottom */}
+                <View className="mt-10">
+                  <Text className="text-center text-xs text-white">
+                    © 2025 TradeTrack by SN TRADERS™
+                  </Text>
+                </View>
               </View>
-            )}
+
+
+            </View>
           </View>
-       <Text className='mt-4 text-center text-xs text-white'>
-        © 2025 TradeTrack by SN TRADERS™
-      </Text>
-        </View>
-      </View>
-    </TouchableWithoutFeedback>
-  </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
 
       <Modal
         visible={showPhoneModal}
