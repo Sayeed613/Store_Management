@@ -95,6 +95,10 @@ yarn install
 2. Enable Firestore Database
 3. Create a `config.js` file in `app/services/firebase/`:
 
+
+
+
+
 ```javascript
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
@@ -112,14 +116,78 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 ```
 
-### 4. Start Development Server
+### 4. Database Indexes Setup
+For optimal query performance, configure the following indexes in your Firebase Console:
+
+![Database Indexes](./assets/database-indexes.png)
+![Database Indexes](./assets/database-rules.png)
+
+**Required Indexes:**
+- **outlets**: `status` (Ascending) + `storeName` (Ascending) + `__name__` (Ascending)
+- **outlets**: `status` (Ascending) + `deactivatedAt` (Descending) + `__name__` (Ascendi ng)
+- **sales**: `outletId` (Ascending) + `status` (Ascending) + `__name__` (Ascending)
+- **sales**: `outletId` (Ascending) + `orderDate` (Descending) + `__name__` (Ascending)
+- **sales**: `outletId` (Ascending) + `status` (Ascending) + `orderDate` (Descending) + `__name__` (Ascending)
+- **sales**: `outletId` (Ascending) + `createdAt` (Descending) + `__name__` (Ascending)
+- **sales**: `orderDate` (Descending) + `orderDate` (Ascending) + `__name__` (Ascending)
+
+**Add Collection**
+- first add users
+document id random
+users :[
+  {
+    fullName :"syed Nawaz",
+    phone:"9008299613",
+    pin:"9632",
+    userType:"admin",
+    username:"nawaz"
+  },
+  {
+     fullName :"sayeed",
+    phone:"9008299713",
+    pin:"1111",
+    userType:"salesman",
+    username:"sayeed"
+  }
+]
+
+- rules
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /outlets/{docId} {
+      allow read, write: if true;
+    }
+    match /sales/{docId} {
+      allow read, write: if true;
+    }
+    match /route/{docId} {
+      allow read, write: if true;
+    }
+    match /users/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
+
+- add route
+collection
+route :[
+  {
+    id:
+    route:Robertsonpet,
+    status:boolean
+  }
+]
+
+### 5. Start Development Server
 ```bash
 npm start
 # or
 expo start
 ```
 
-### 5. Run on Device/Simulator
+### 6. Run on Device/Simulator
 ```bash
 # Android
 npm run android
